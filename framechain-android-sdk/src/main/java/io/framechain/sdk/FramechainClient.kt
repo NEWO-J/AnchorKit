@@ -1,12 +1,12 @@
 package io.framechain.sdk
 
-import android.content.Context
 import io.framechain.sdk.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -15,81 +15,90 @@ class FramechainClient(
     private val baseUrl: String = "https://api.framechain.io"
 ) {
     private val json = Json { ignoreUnknownKeys = true }
-    
+
     /**
-     * Submit a photo hash for blockchain verification
-     * @param hash SHA-256 hash of the photo
-     * @param metadata Optional metadata
-     * @return VerificationReceipt
+     * Submit a photo hash for blockchain verification.
+     *
+     * @param hash SHA-256 hex hash of the photo (64 characters, lowercase)
+     * @param enclaveSignature Base64-encoded ECDSA signature from the hardware key
+     * @param deviceAttestation Base64-encoded certificate chain proving hardware origin
+     * @param metadata Optional caller-supplied key/value pairs stored alongside the hash
+     * @return [VerificationReceipt] confirming the hash was stored
+     * @throws FramechainError.NetworkError on I/O failures
+     * @throws FramechainError.ApiError on non-2xx responses
      */
     suspend fun submitHash(
         hash: String,
+        enclaveSignature: String,
+        deviceAttestation: String,
         metadata: Map<String, String> = emptyMap()
     ): VerificationReceipt = withContext(Dispatchers.IO) {
         val request = SubmitRequest(
             hash = hash.lowercase(),
             api_key = apiKey,
+            enclave_signature = enclaveSignature,
+            device_attestation = deviceAttestation,
             metadata = metadata + mapOf("platform" to "android")
         )
-        
-        val url = URL("$baseUrl/api/submit-hash")
-        val connection = url.openConnection() as HttpURLConnection
-        
+
+        val connection = openConnection("$baseUrl/api/submit-hash", "POST")
         try {
-            connection.apply {
-                requestMethod = "POST"
-                setRequestProperty("Content-Type", "application/json")
-                setRequestProperty("X-API-Key", apiKey)
-                doOutput = true
-                connectTimeout = 30000
-                readTimeout = 30000
-            }
-            
-            // Send request
-            connection.outputStream.use { output ->
-                output.write(json.encodeToString(request).toByteArray())
-            }
-            
-            // Read response
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().readText()
-                json.decodeFromString<VerificationReceipt>(response)
-            } else {
-                val error = connection.errorStream.bufferedReader().readText()
-                throw Exception("API Error ($responseCode): $error")
-            }
+            connection.outputStream.use { it.write(json.encodeToString(request).toByteArray()) }
+            readResponse<VerificationReceipt>(connection)
+        } catch (e: FramechainError) {
+            throw e
+        } catch (e: IOException) {
+            throw FramechainError.NetworkError("Network request failed: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
     }
-    
+
     /**
-     * Verify a photo hash against the blockchain
-     * @param hash SHA-256 hash to verify
-     * @return VerificationResult
+     * Verify a photo hash against the blockchain.
+     *
+     * @param hash SHA-256 hex hash to look up
+     * @return [VerificationResult] with blockchain confirmation status
+     * @throws FramechainError.NetworkError on I/O failures
+     * @throws FramechainError.ApiError on non-2xx responses
      */
     suspend fun verifyHash(hash: String): VerificationResult = withContext(Dispatchers.IO) {
-        val url = URL("$baseUrl/api/verify-hash/${hash.lowercase()}")
-        val connection = url.openConnection() as HttpURLConnection
-        
+        val connection = openConnection("$baseUrl/api/verify-hash/${hash.lowercase()}", "GET")
         try {
-            connection.apply {
-                requestMethod = "GET"
-                setRequestProperty("X-API-Key", apiKey)
-                connectTimeout = 30000
-                readTimeout = 30000
-            }
-            
-            val responseCode = connection.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().readText()
-                json.decodeFromString<VerificationResult>(response)
-            } else {
-                throw Exception("Verification failed: $responseCode")
-            }
+            readResponse<VerificationResult>(connection)
+        } catch (e: FramechainError) {
+            throw e
+        } catch (e: IOException) {
+            throw FramechainError.NetworkError("Network request failed: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Private helpers
+    // -------------------------------------------------------------------------
+
+    private fun openConnection(urlString: String, method: String): HttpURLConnection {
+        return (URL(urlString).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("X-API-Key", apiKey)
+            connectTimeout = 30_000
+            readTimeout = 30_000
+            if (method == "POST") doOutput = true
+        }
+    }
+
+    private inline fun <reified T> readResponse(connection: HttpURLConnection): T {
+        val code = connection.responseCode
+        if (code in 200..299) {
+            val body = connection.inputStream.bufferedReader().readText()
+            return json.decodeFromString(body)
+        }
+        val errorBody = runCatching {
+            connection.errorStream?.bufferedReader()?.readText() ?: ""
+        }.getOrDefault("")
+        throw FramechainError.ApiError(code, errorBody)
     }
 }
