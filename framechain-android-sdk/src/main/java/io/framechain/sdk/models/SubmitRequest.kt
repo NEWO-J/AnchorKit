@@ -15,8 +15,9 @@ data class SubmitRequest(
 @Serializable
 data class VerificationResult(
     val hash: String,
-    val day: String,
-    val timestamp: Long,
-    val hash_id: Int,
-    val verified: Boolean
+    val verified: Boolean,
+    val day: String? = null,
+    val timestamp: Long? = null,
+    val hash_id: Int? = null,
+    val message: String? = null
 )
