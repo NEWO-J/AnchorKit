@@ -7,10 +7,11 @@
     <string name="capture_desc">Take a photo. Its SHA-256 hash will be signed by this device\'s hardware security chip and submitted to the Framechain API for nightly anchoring on the Solana blockchain.</string>
     <string name="btn_capture">Capture Photo &amp; Submit</string>
 
-    <string name="verify_title">Verify a Hash</string>
-    <string name="verify_desc">Enter a 64-character hex hash to check whether it has been anchored to the blockchain and retrieve its Merkle proof.</string>
-    <string name="hash_hint">SHA-256 hash (64 hex characters)</string>
+    <string name="verify_title">Verify a Photo</string>
+    <string name="verify_desc">Pick a photo from your gallery. The app will compute its SHA-256 hash and check whether it has been anchored to the Solana blockchain.</string>
+    <string name="btn_pick_photo">Pick Photo from Gallery</string>
     <string name="btn_verify">Verify on Blockchain</string>
+    <string name="hash_label">SHA-256 hash:</string>
 
     <string name="result_title">Result</string>
 </resources>

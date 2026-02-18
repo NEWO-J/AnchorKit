@@ -2,6 +2,7 @@ package io.framechain.demo
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
@@ -11,12 +12,18 @@ import androidx.lifecycle.lifecycleScope
 import io.framechain.demo.databinding.ActivityMainBinding
 import io.framechain.sdk.Framechain
 import io.framechain.sdk.FramechainError
+import io.framechain.sdk.HashUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var framechain: Framechain
+
+    // Hash computed from the last picked photo — non-null once a photo is selected.
+    private var pickedPhotoHash: String? = null
 
     // Permission launcher — requests CAMERA and resumes the pending capture on grant.
     private var pendingCaptureOnGrant = false
@@ -31,6 +38,13 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // Image picker launcher — opens the system gallery.
+    private val photoPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) onPhotoPicked(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -43,6 +57,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
+        binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
     }
 
@@ -69,12 +84,45 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onVerifyClicked() {
-        val hash = binding.etHash.text?.toString()?.trim() ?: ""
-        if (hash.length != 64 || !hash.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }) {
-            showResult("Please enter a valid 64-character hex hash.")
-            return
-        }
+        val hash = pickedPhotoHash ?: return
         verifyHash(hash)
+    }
+
+    // -------------------------------------------------------------------------
+    // Photo picker result
+    // -------------------------------------------------------------------------
+
+    private fun onPhotoPicked(uri: Uri) {
+        setLoading(true)
+        showResult("")
+
+        lifecycleScope.launch {
+            try {
+                val hash = withContext(Dispatchers.IO) {
+                    contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?.let { HashUtils.hashPhoto(it) }
+                        ?: throw IllegalStateException("Could not read selected image")
+                }
+
+                pickedPhotoHash = hash
+
+                // Show thumbnail
+                binding.ivPickedPhoto.setImageURI(uri)
+                binding.ivPickedPhoto.visibility = View.VISIBLE
+
+                // Show hash
+                binding.tvPickedHash.text = getString(R.string.hash_label) + "\n" + hash
+                binding.tvPickedHash.visibility = View.VISIBLE
+
+                // Enable the verify button now that we have a hash
+                binding.btnVerify.isEnabled = true
+
+            } catch (e: Exception) {
+                showResult("Could not read photo: ${e.message}")
+            } finally {
+                setLoading(false)
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -130,6 +178,10 @@ class MainActivity : AppCompatActivity() {
                             appendLine("Day:       ${result.day}")
                             appendLine("Timestamp: ${result.timestamp}")
                             appendLine("Hash ID:   ${result.hash_id}")
+                            if (result.solana_tx != null) {
+                                appendLine()
+                                appendLine("Solana TX: ${result.solana_tx}")
+                            }
                         }
                     )
                 } else {
@@ -142,7 +194,7 @@ class MainActivity : AppCompatActivity() {
                                 appendLine("Recorded on: ${result.day}")
                                 appendLine("Anchor is pending — check back tomorrow.")
                             } else {
-                                appendLine("Hash not found in the system.")
+                                appendLine(result.message ?: "Hash not found in the system.")
                             }
                         }
                     )
@@ -166,7 +218,10 @@ class MainActivity : AppCompatActivity() {
     private fun setLoading(loading: Boolean) {
         binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         binding.btnCapture.isEnabled = !loading
-        binding.btnVerify.isEnabled = !loading
+        binding.btnPickPhoto.isEnabled = !loading
+        // btnVerify stays disabled until a photo has been picked; restore state after load
+        if (loading) binding.btnVerify.isEnabled = false
+        else binding.btnVerify.isEnabled = pickedPhotoHash != null
     }
 
     private fun showResult(text: String) {
