@@ -12,7 +12,7 @@
 <network-security-config>
     <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
-            <!-- Standard system CAs (covers api.framechain.io) -->
+            <!-- Standard system CAs (covers api.framechain.net) -->
             <certificates src="system" />
             <!-- User-installed CAs: lets devs trust a self-signed cert
                  by adding it via Settings → Security → Install certificate -->

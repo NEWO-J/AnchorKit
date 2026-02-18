@@ -14,7 +14,7 @@ import java.net.URL
 
 class FramechainClient(
     private val apiKey: String,
-    private val baseUrl: String = "https://api.framechain.io"
+    private val baseUrl: String = "https://api.framechain.net"
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 

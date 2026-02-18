@@ -11,7 +11,7 @@ import kotlinx.coroutines.withContext
 class Framechain(
     private val context: Context,
     apiKey: String,
-    baseUrl: String = "https://api.framechain.io"
+    baseUrl: String = "https://api.framechain.net"
 ) {
     private val client = FramechainClient(apiKey, baseUrl)
     private val photoCapture = PhotoCapture(context)

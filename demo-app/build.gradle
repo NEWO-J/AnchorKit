@@ -16,9 +16,9 @@ android {
 
         // Override in local.properties or CI env:
         //   FRAMECHAIN_API_KEY=<key>
-        //   FRAMECHAIN_BASE_URL=https://api.framechain.io
+        //   FRAMECHAIN_BASE_URL=https://api.framechain.net
         def apiKey = project.findProperty("FRAMECHAIN_API_KEY") ?: ""
-        def baseUrl = project.findProperty("FRAMECHAIN_BASE_URL") ?: "https://api.framechain.io"
+        def baseUrl = project.findProperty("FRAMECHAIN_BASE_URL") ?: "https://api.framechain.net"
         buildConfigField "String", "FRAMECHAIN_API_KEY", "\"${apiKey}\""
         buildConfigField "String", "FRAMECHAIN_BASE_URL", "\"${baseUrl}\""
     }
