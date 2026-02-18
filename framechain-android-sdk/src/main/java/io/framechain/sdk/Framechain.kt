@@ -2,6 +2,7 @@ package io.framechain.sdk
 
 import android.content.Context
 import androidx.lifecycle.LifecycleOwner
+import io.framechain.sdk.models.PortableProof
 import io.framechain.sdk.models.VerificationReceipt
 import io.framechain.sdk.models.VerificationResult
 import kotlinx.coroutines.Dispatchers
@@ -86,6 +87,33 @@ class Framechain(
      */
     suspend fun verify(hash: String): VerificationResult {
         return client.verifyHash(hash)
+    }
+
+    /**
+     * Download a portable, self-contained proof bundle for a hash.
+     *
+     * Store the returned [PortableProof] in your own database. Once stored,
+     * call [verifyLocally] at any future time without needing Framechain's servers.
+     *
+     * @throws FramechainError.NetworkError on connectivity failures
+     * @throws FramechainError.ApiError if the hash has not yet been anchored (HTTP 404/202)
+     */
+    suspend fun downloadProof(hash: String): PortableProof {
+        return client.downloadProof(hash)
+    }
+
+    /**
+     * Verify a [PortableProof] without contacting the Framechain API.
+     *
+     * Performs two independent checks:
+     * 1. Local SHA-256 Merkle math — no network.
+     * 2. Direct Solana JSON-RPC call to confirm the on-chain root.
+     *
+     * @param proof A bundle previously obtained from [downloadProof].
+     * @return [SolanaVerifier.LocalVerificationResult] — check [SolanaVerifier.LocalVerificationResult.valid].
+     */
+    suspend fun verifyLocally(proof: PortableProof): SolanaVerifier.LocalVerificationResult {
+        return SolanaVerifier.verify(proof)
     }
 
     /**

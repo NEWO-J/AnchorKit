@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Demo-app network security config.
+
+    Allows cleartext HTTP and trusts user-installed CAs so developers can
+    point FRAMECHAIN_BASE_URL at a local dev server (http://10.0.2.2:8000,
+    self-signed HTTPS, etc.) without hitting SSL / cleartext-traffic errors.
+
+    Do NOT copy this config into a production app — use system CAs only and
+    leave cleartextTrafficPermitted at its default (false for API 28+).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <!-- Standard system CAs (covers api.framechain.io) -->
+            <certificates src="system" />
+            <!-- User-installed CAs: lets devs trust a self-signed cert
+                 by adding it via Settings → Security → Install certificate -->
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

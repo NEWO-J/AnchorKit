@@ -104,31 +104,45 @@
                     android:textColor="@color/text_secondary"
                     android:layout_marginBottom="12dp" />
 
-                <com.google.android.material.textfield.TextInputLayout
+                <!-- Step 1: pick a photo -->
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnPickPhoto"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="@string/hash_hint"
-                    style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-                    android:layout_marginBottom="12dp">
+                    android:text="@string/btn_pick_photo"
+                    android:textAllCaps="false"
+                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    app:cornerRadius="8dp"
+                    android:layout_marginBottom="12dp" />
 
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/etHash"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:inputType="textNoSuggestions"
-                        android:maxLines="1"
-                        android:fontFamily="monospace"
-                        android:textSize="12sp" />
+                <!-- Thumbnail shown after a photo is picked -->
+                <ImageView
+                    android:id="@+id/ivPickedPhoto"
+                    android:layout_width="match_parent"
+                    android:layout_height="120dp"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone"
+                    android:layout_marginBottom="8dp" />
 
-                </com.google.android.material.textfield.TextInputLayout>
+                <!-- Computed hash displayed below the thumbnail -->
+                <TextView
+                    android:id="@+id/tvPickedHash"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:textColor="@color/text_secondary"
+                    android:visibility="gone"
+                    android:layout_marginBottom="12dp" />
 
+                <!-- Step 2: verify (enabled only after a photo is picked) -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnVerify"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/btn_verify"
                     android:textAllCaps="false"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                    android:enabled="false"
                     app:cornerRadius="8dp" />
 
             </LinearLayout>
