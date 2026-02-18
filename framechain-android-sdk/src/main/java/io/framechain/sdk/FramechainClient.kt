@@ -10,6 +10,8 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
+
+
 class FramechainClient(
     private val apiKey: String,
     private val baseUrl: String = "https://api.framechain.io"
@@ -66,6 +68,30 @@ class FramechainClient(
         val connection = openConnection("$baseUrl/api/verify-hash/${hash.lowercase()}", "GET")
         try {
             readResponse<VerificationResult>(connection)
+        } catch (e: FramechainError) {
+            throw e
+        } catch (e: IOException) {
+            throw FramechainError.NetworkError("Network request failed: ${e.message}", e)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Download a portable, self-contained proof bundle for a hash.
+     *
+     * The returned [PortableProof] can be stored locally and later verified
+     * without any Framechain server via [SolanaVerifier.verify].
+     *
+     * @param hash SHA-256 hex hash to fetch a proof for
+     * @return [PortableProof] containing the Merkle proof and on-chain references
+     * @throws FramechainError.NetworkError on I/O failures
+     * @throws FramechainError.ApiError on non-2xx responses (404 = not yet anchored)
+     */
+    suspend fun downloadProof(hash: String): PortableProof = withContext(Dispatchers.IO) {
+        val connection = openConnection("$baseUrl/api/proof/${hash.lowercase()}", "GET")
+        try {
+            readResponse<PortableProof>(connection)
         } catch (e: FramechainError) {
             throw e
         } catch (e: IOException) {

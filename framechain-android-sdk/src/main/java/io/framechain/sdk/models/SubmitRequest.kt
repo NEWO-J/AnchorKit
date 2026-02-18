@@ -19,5 +19,10 @@ data class VerificationResult(
     val day: String? = null,
     val timestamp: Long? = null,
     val hash_id: Int? = null,
+    val merkle_proof: List<List<String>>? = null,
+    val merkle_root: String? = null,
+    val solana_tx: String? = null,
+    val solana_program: String? = null,
+    val chain: String? = null,
     val message: String? = null
 )
