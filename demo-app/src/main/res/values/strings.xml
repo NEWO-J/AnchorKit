@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Framechain</string>
+    <string name="subtitle">Hardware-attested photo provenance on Solana</string>
+
+    <string name="capture_title">Capture &amp; Submit</string>
+    <string name="capture_desc">Take a photo. Its SHA-256 hash will be signed by this device\'s hardware security chip and submitted to the Framechain API for nightly anchoring on the Solana blockchain.</string>
+    <string name="btn_capture">Capture Photo &amp; Submit</string>
+
+    <string name="verify_title">Verify a Hash</string>
+    <string name="verify_desc">Enter a 64-character hex hash to check whether it has been anchored to the blockchain and retrieve its Merkle proof.</string>
+    <string name="hash_hint">SHA-256 hash (64 hex characters)</string>
+    <string name="btn_verify">Verify on Blockchain</string>
+
+    <string name="result_title">Result</string>
+</resources>
