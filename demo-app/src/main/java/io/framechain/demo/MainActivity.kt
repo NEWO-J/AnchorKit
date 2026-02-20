@@ -1,10 +1,16 @@
 package io.framechain.demo
 
+import android.Manifest
+import android.content.ContentValues
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import io.framechain.demo.databinding.ActivityMainBinding
@@ -26,6 +32,17 @@ class MainActivity : AppCompatActivity() {
 
     // Temp file written by the system camera app.
     private var capturePhotoFile: File? = null
+
+    // Requests CAMERA (and WRITE_EXTERNAL_STORAGE on API < 29) then opens the camera.
+    private val permissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        if (results[Manifest.permission.CAMERA] == true) {
+            launchCamera()
+        } else {
+            showResult("Camera permission is required to capture photos.")
+        }
+    }
 
     // Opens the system camera app (full preview + capture button).
     private val takePictureLauncher = registerForActivityResult(
@@ -65,6 +82,25 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun onCaptureClicked() {
+        // Build the list of permissions that still need to be granted.
+        val needed = buildList {
+            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED
+            ) add(Manifest.permission.CAMERA)
+
+            // WRITE_EXTERNAL_STORAGE is only required below Android 10 (API 29).
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                ContextCompat.checkSelfPermission(
+                    this@MainActivity, Manifest.permission.WRITE_EXTERNAL_STORAGE
+                ) != PackageManager.PERMISSION_GRANTED
+            ) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+
+        if (needed.isEmpty()) launchCamera()
+        else permissionsLauncher.launch(needed.toTypedArray())
+    }
+
+    private fun launchCamera() {
         val photoFile = File(cacheDir, "photos/capture_${System.currentTimeMillis()}.jpg")
             .also { it.parentFile?.mkdirs() }
         capturePhotoFile = photoFile
@@ -124,6 +160,9 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
+                // Save to the user's photo gallery before submitting to the blockchain.
+                withContext(Dispatchers.IO) { saveToGallery(file) }
+
                 val result = framechain.submitFile(file)
                 showResult(
                     buildString {
@@ -149,6 +188,38 @@ class MainActivity : AppCompatActivity() {
                 setLoading(false)
                 file.delete()
             }
+        }
+    }
+
+    /**
+     * Copies [file] into the public photo gallery via MediaStore so it appears
+     * in the device's Photos/Gallery app alongside other pictures.
+     *
+     * On API 29+ no extra permission is needed. On API 24–28 the caller must
+     * have already obtained WRITE_EXTERNAL_STORAGE.
+     */
+    private fun saveToGallery(file: File) {
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+
+        val resolver = contentResolver
+        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return
+
+        resolver.openOutputStream(uri)?.use { out ->
+            file.inputStream().use { it.copyTo(out) }
+        }
+
+        // Flip IS_PENDING to 0 so the image becomes visible to other apps.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            resolver.update(uri, values, null, null)
         }
     }
 
