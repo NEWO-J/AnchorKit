@@ -1,13 +1,11 @@
 package io.framechain.demo
 
-import android.Manifest
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import io.framechain.demo.databinding.ActivityMainBinding
 import io.framechain.sdk.Framechain
@@ -16,6 +14,7 @@ import io.framechain.sdk.HashUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -25,16 +24,16 @@ class MainActivity : AppCompatActivity() {
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
 
-    // Permission launcher — requests CAMERA and resumes the pending capture on grant.
-    private var pendingCaptureOnGrant = false
-    private val cameraPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted && pendingCaptureOnGrant) {
-            pendingCaptureOnGrant = false
-            captureAndSubmit()
-        } else if (!granted) {
-            showResult("Camera permission denied. Grant it in Settings to capture photos.")
+    // Temp file written by the system camera app.
+    private var capturePhotoFile: File? = null
+
+    // Opens the system camera app (full preview + capture button).
+    private val takePictureLauncher = registerForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val file = capturePhotoFile ?: return@registerForActivityResult
+            submitCapturedFile(file)
         }
     }
 
@@ -66,21 +65,11 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun onCaptureClicked() {
-        when {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                    == PackageManager.PERMISSION_GRANTED -> captureAndSubmit()
-
-            shouldShowRequestPermissionRationale(Manifest.permission.CAMERA) -> {
-                showResult("Camera permission is required to capture photos.\nTap 'Capture' again to request it.")
-                pendingCaptureOnGrant = true
-                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-            }
-
-            else -> {
-                pendingCaptureOnGrant = true
-                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-            }
-        }
+        val photoFile = File(cacheDir, "photos/capture_${System.currentTimeMillis()}.jpg")
+            .also { it.parentFile?.mkdirs() }
+        capturePhotoFile = photoFile
+        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile)
+        takePictureLauncher.launch(uri)
     }
 
     private fun onVerifyClicked() {
@@ -129,13 +118,13 @@ class MainActivity : AppCompatActivity() {
     // SDK calls (run in lifecycleScope — cancelled automatically on destroy)
     // -------------------------------------------------------------------------
 
-    private fun captureAndSubmit() {
+    private fun submitCapturedFile(file: File) {
         setLoading(true)
         showResult("")
 
         lifecycleScope.launch {
             try {
-                val result = framechain.captureAndSubmit(this@MainActivity)
+                val result = framechain.submitFile(file)
                 showResult(
                     buildString {
                         appendLine("Photo submitted successfully!")
@@ -158,6 +147,7 @@ class MainActivity : AppCompatActivity() {
                 showResult("Unexpected error: ${e.message}")
             } finally {
                 setLoading(false)
+                file.delete()
             }
         }
     }
