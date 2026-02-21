@@ -6,6 +6,7 @@ import kotlinx.serialization.Serializable
 data class SubmitRequest(
     val hash: String,
     val api_key: String,
+    val nonce: String,
     val enclave_signature: String,
     val device_attestation: String,
     val timestamp: Long = System.currentTimeMillis(),

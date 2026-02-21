@@ -1,6 +1,13 @@
 package io.framechain.sdk
 
 import io.framechain.sdk.models.*
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class AttestationChallenge(
+    val nonce: String,
+    val expires_at: Long
+)
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -19,10 +26,36 @@ class FramechainClient(
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
+     * Fetch a single-use attestation challenge nonce from the server.
+     *
+     * Must be called immediately before [submitHash]. The nonce is embedded
+     * in the data signed by the hardware key so that each submission is
+     * bound to a fresh, server-issued challenge — preventing replay of a
+     * previously captured attestation.
+     *
+     * @return [AttestationChallenge] containing the nonce and its expiry time
+     * @throws FramechainError.NetworkError on I/O failures
+     * @throws FramechainError.ApiError on non-2xx responses
+     */
+    suspend fun fetchChallenge(): AttestationChallenge = withContext(Dispatchers.IO) {
+        val connection = openConnection("$baseUrl/api/attestation-challenge", "GET")
+        try {
+            readResponse<AttestationChallenge>(connection)
+        } catch (e: FramechainError) {
+            throw e
+        } catch (e: IOException) {
+            throw FramechainError.NetworkError("Failed to fetch attestation challenge: ${e.message}", e)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
      * Submit a photo hash for blockchain verification.
      *
      * @param hash SHA-256 hex hash of the photo (64 characters, lowercase)
-     * @param enclaveSignature Base64-encoded ECDSA signature from the hardware key
+     * @param nonce Single-use challenge nonce obtained from [fetchChallenge]
+     * @param enclaveSignature Base64-encoded ECDSA signature over hash:nonce from the hardware key
      * @param deviceAttestation Base64-encoded certificate chain proving hardware origin
      * @param metadata Optional caller-supplied key/value pairs stored alongside the hash
      * @return [VerificationReceipt] confirming the hash was stored
@@ -31,6 +64,7 @@ class FramechainClient(
      */
     suspend fun submitHash(
         hash: String,
+        nonce: String,
         enclaveSignature: String,
         deviceAttestation: String,
         metadata: Map<String, String> = emptyMap()
@@ -38,6 +72,7 @@ class FramechainClient(
         val request = SubmitRequest(
             hash = hash.lowercase(),
             api_key = apiKey,
+            nonce = nonce,
             enclave_signature = enclaveSignature,
             device_attestation = deviceAttestation,
             metadata = metadata + mapOf("platform" to "android")

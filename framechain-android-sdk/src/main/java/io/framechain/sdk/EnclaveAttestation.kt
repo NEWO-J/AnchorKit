@@ -44,12 +44,22 @@ object EnclaveAttestation {
     )
 
     /**
-     * Sign [data] with the hardware-backed key and return both the signature
-     * and the attestation certificate chain.
+     * Sign [hash] bound to [nonce] with the hardware-backed key and return both
+     * the signature and the attestation certificate chain.
+     *
+     * The signed payload is  ``"${hash}:${nonce}"``  encoded as UTF-8.  Binding
+     * the server-issued nonce into the signed data means a captured attestation
+     * cannot be replayed — the server consumes the nonce on first use and will
+     * reject any subsequent submission carrying the same nonce.
      *
      * Generates the key on first call; subsequent calls reuse the existing key.
+     *
+     * @param hash Lowercase hex SHA-256 hash of the photo (64 chars)
+     * @param nonce Single-use challenge nonce obtained from GET /api/attestation-challenge
+     * @param context Android context used to access the Keystore
      */
-    fun sign(data: ByteArray, context: Context): AttestationResult {
+    fun sign(hash: String, nonce: String, context: Context): AttestationResult {
+        val data = "$hash:$nonce".toByteArray(Charsets.UTF_8)
         ensureKeyExists(context)
 
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
