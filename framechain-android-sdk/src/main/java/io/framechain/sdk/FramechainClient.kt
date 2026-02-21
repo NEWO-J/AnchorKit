@@ -113,6 +113,71 @@ class FramechainClient(
     }
 
     /**
+     * Subscribe an email address to receive nightly batch notification emails.
+     *
+     * Emails include the batch date, number of hashes archived, Merkle root,
+     * and Solana transaction ID. Every email contains a one-click unsubscribe link.
+     *
+     * @param email Email address to subscribe
+     * @throws FramechainError.NetworkError on I/O failures
+     * @throws FramechainError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
+     */
+    suspend fun subscribeToNotifications(email: String): Unit = withContext(Dispatchers.IO) {
+        @Serializable
+        data class SubscribeRequest(val email: String, val api_key: String)
+
+        val connection = openConnection("$baseUrl/api/notifications/subscribe", "POST")
+        try {
+            val body = json.encodeToString(SubscribeRequest(email = email, api_key = apiKey))
+            connection.outputStream.use { it.write(body.toByteArray()) }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val errorBody = runCatching {
+                    connection.errorStream?.bufferedReader()?.readText() ?: ""
+                }.getOrDefault("")
+                throw FramechainError.ApiError(code, errorBody)
+            }
+        } catch (e: FramechainError) {
+            throw e
+        } catch (e: IOException) {
+            throw FramechainError.NetworkError("Failed to subscribe: ${e.message}", e)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Unsubscribe an email address from nightly batch notifications.
+     *
+     * @param email Email address to unsubscribe
+     * @throws FramechainError.NetworkError on I/O failures
+     * @throws FramechainError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
+     */
+    suspend fun unsubscribeFromNotifications(email: String): Unit = withContext(Dispatchers.IO) {
+        @Serializable
+        data class UnsubscribeRequest(val email: String, val api_key: String)
+
+        val connection = openConnection("$baseUrl/api/notifications/unsubscribe-api", "POST")
+        try {
+            val body = json.encodeToString(UnsubscribeRequest(email = email, api_key = apiKey))
+            connection.outputStream.use { it.write(body.toByteArray()) }
+            val code = connection.responseCode
+            if (code !in 200..299) {
+                val errorBody = runCatching {
+                    connection.errorStream?.bufferedReader()?.readText() ?: ""
+                }.getOrDefault("")
+                throw FramechainError.ApiError(code, errorBody)
+            }
+        } catch (e: FramechainError) {
+            throw e
+        } catch (e: IOException) {
+            throw FramechainError.NetworkError("Failed to unsubscribe: ${e.message}", e)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
      * Download a portable, self-contained proof bundle for a hash.
      *
      * The returned [PortableProof] can be stored locally and later verified

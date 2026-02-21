@@ -78,6 +78,8 @@ class MainActivity : AppCompatActivity() {
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
+        binding.btnSubscribe.setOnClickListener { onSubscribeClicked() }
+        binding.btnUnsubscribe.setOnClickListener { onUnsubscribeClicked() }
     }
 
     // -------------------------------------------------------------------------
@@ -394,6 +396,60 @@ private fun verifyHash(hash: String) {
         }
     }
 }
+
+    // -------------------------------------------------------------------------
+    // Notification subscription
+    // -------------------------------------------------------------------------
+
+    private fun onSubscribeClicked() {
+        val email = binding.etEmail.text?.toString().orEmpty().trim()
+        if (email.isEmpty()) {
+            binding.tilEmail.error = "Enter an email address"
+            return
+        }
+        binding.tilEmail.error = null
+        setLoading(true)
+
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { framechain.subscribeToNotifications(email) }
+                showResult("Subscribed! You'll receive an email after each nightly batch.")
+            } catch (e: FramechainError.ApiError) {
+                showResult("Could not subscribe (${e.statusCode}): ${e.body}")
+            } catch (e: FramechainError.NetworkError) {
+                showResult("Network error: ${e.message}")
+            } catch (e: Exception) {
+                showResult("Unexpected error: ${e.message}")
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
+    private fun onUnsubscribeClicked() {
+        val email = binding.etEmail.text?.toString().orEmpty().trim()
+        if (email.isEmpty()) {
+            binding.tilEmail.error = "Enter the email address to unsubscribe"
+            return
+        }
+        binding.tilEmail.error = null
+        setLoading(true)
+
+        lifecycleScope.launch {
+            try {
+                withContext(Dispatchers.IO) { framechain.unsubscribeFromNotifications(email) }
+                showResult("Unsubscribed. $email will no longer receive batch notifications.")
+            } catch (e: FramechainError.ApiError) {
+                showResult("Could not unsubscribe (${e.statusCode}): ${e.body}")
+            } catch (e: FramechainError.NetworkError) {
+                showResult("Network error: ${e.message}")
+            } catch (e: Exception) {
+                showResult("Unexpected error: ${e.message}")
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
 
     // -------------------------------------------------------------------------
     // UI helpers

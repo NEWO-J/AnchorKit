@@ -127,6 +127,27 @@ class Framechain(
     }
 
     /**
+     * Subscribe an email address to receive a notification email after each
+     * nightly batch is archived and anchored to Solana.
+     *
+     * @throws FramechainError.NetworkError on connectivity failures
+     * @throws FramechainError.ApiError on non-2xx responses (401 = bad key, 422 = invalid email)
+     */
+    suspend fun subscribeToNotifications(email: String) {
+        client.subscribeToNotifications(email)
+    }
+
+    /**
+     * Unsubscribe an email address from nightly batch notifications.
+     *
+     * @throws FramechainError.NetworkError on connectivity failures
+     * @throws FramechainError.ApiError on non-2xx responses
+     */
+    suspend fun unsubscribeFromNotifications(email: String) {
+        client.unsubscribeFromNotifications(email)
+    }
+
+    /**
      * Hash photo bytes without submitting. Useful for pre-computing the hash
      * before deciding whether to submit.
      */

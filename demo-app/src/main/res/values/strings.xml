@@ -14,4 +14,10 @@
     <string name="hash_label">SHA-256 hash:</string>
 
     <string name="result_title">Result</string>
+
+    <string name="notifications_title">Batch Notifications</string>
+    <string name="notifications_desc">Get an email after each nightly batch is anchored to Solana. The email includes the hash count, Merkle root, and Solana transaction ID.</string>
+    <string name="notifications_email_hint">Email address</string>
+    <string name="btn_subscribe">Subscribe</string>
+    <string name="btn_unsubscribe">Unsubscribe</string>
 </resources>
