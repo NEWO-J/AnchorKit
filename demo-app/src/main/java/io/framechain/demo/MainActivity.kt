@@ -287,14 +287,28 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     showResult(
                         buildString {
-                            appendLine("Hash not yet verified.")
+                            appendLine("Photo recorded — not yet anchored to blockchain.")
                             appendLine()
-                            appendLine("Hash: ${result.hash}")
+                            appendLine("Hash:      ${result.hash}")
                             if (!result.day.isNullOrEmpty()) {
-                                appendLine("Recorded on: ${result.day}")
-                                appendLine("Anchor is pending — check back tomorrow.")
+                                appendLine("Batch day: ${result.day}")
+                            }
+                            if (result.hash_id != null) {
+                                appendLine("Hash ID:   ${result.hash_id}")
+                            }
+                            val tsMillis = result.timestamp?.let { it * 1000L }
+                            if (tsMillis != null) {
+                                val tsFormatted = SimpleDateFormat(
+                                    "MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()
+                                ).format(Date(tsMillis))
+                                appendLine("Recorded:  $tsFormatted")
+                            }
+                            if (result.day.isNullOrEmpty() && result.message != null) {
+                                appendLine()
+                                appendLine(result.message)
                             } else {
-                                appendLine(result.message ?: "Hash not found in the system.")
+                                appendLine()
+                                appendLine("Blockchain anchor is pending — check back tomorrow.")
                             }
                         }
                     )
@@ -302,7 +316,28 @@ class MainActivity : AppCompatActivity() {
             } catch (e: FramechainError.NetworkError) {
                 showResult("Network error: ${e.message}")
             } catch (e: FramechainError.ApiError) {
-                showResult("API error ${e.statusCode}: ${e.body}")
+                if (e.statusCode == 503 && e.body.contains("warm storage archive", ignoreCase = true)) {
+                    // Today's batch archive is still being built — the hash IS in the system
+                    // but can't be queried yet. Show a friendly pending-anchor message.
+                    val dayMatch = Regex("""\d{4}-\d{2}-\d{2}""").find(e.body)?.value
+                    showResult(
+                        buildString {
+                            appendLine("Photo recorded — not yet anchored to blockchain.")
+                            appendLine()
+                            appendLine("Hash:      $hash")
+                            if (dayMatch != null) {
+                                appendLine("Batch day: $dayMatch")
+                            }
+                            appendLine()
+                            appendLine("Hardware attestation was captured at submission.")
+                            appendLine("Submission details are temporarily unavailable while")
+                            appendLine("today's archive is being processed — check back tomorrow")
+                            appendLine("for the full record and Solana transaction ID.")
+                        }
+                    )
+                } else {
+                    showResult("API error ${e.statusCode}: ${e.body}")
+                }
             } catch (e: Exception) {
                 showResult("Unexpected error: ${e.message}")
             } finally {
