@@ -11,10 +11,13 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Locale
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -85,26 +88,53 @@ class PhotoCapture(private val context: Context) {
     }
     
     /**
-     * Hash an existing image file
-     * @param file Image file
-     * @return PhotoResult
+     * Hash an existing image file.
+     *
+     * The timestamp in the returned [PhotoResult] reflects the actual moment
+     * the photo was taken, read from EXIF [ExifInterface.TAG_DATETIME_ORIGINAL]
+     * (or [ExifInterface.TAG_DATETIME] as a fallback). If neither tag is present
+     * the current wall-clock time is used instead.
+     *
+     * @param file Image file (JPEG, PNG, or any format supported by ExifInterface)
+     * @return PhotoResult with image data, hash, and capture timestamp
      */
     fun hashFile(file: File): PhotoResult {
         val photoData = file.readBytes()
         val hash = HashUtils.hashPhoto(photoData)
-        
+
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
         BitmapFactory.decodeFile(file.absolutePath, options)
-        
+
+        // Prefer the EXIF capture time so gallery photos show when they were taken,
+        // not when they were submitted. Fall back to System.currentTimeMillis() for
+        // formats that carry no EXIF metadata (PNG, screenshots, etc.).
+        val timestamp = readExifTimestamp(file) ?: System.currentTimeMillis()
+
         return PhotoResult(
             data = photoData,
             hash = hash,
-            timestamp = System.currentTimeMillis(),
+            timestamp = timestamp,
             width = options.outWidth,
             height = options.outHeight
         )
+    }
+
+    /**
+     * Returns the epoch-millisecond timestamp stored in the EXIF header of [file],
+     * or null if no recognised date tag is present or parsing fails.
+     */
+    private fun readExifTimestamp(file: File): Long? {
+        val exifDateFormat = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US)
+        return try {
+            val exif = ExifInterface(file.absolutePath)
+            val dateStr = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+                ?: exif.getAttribute(ExifInterface.TAG_DATETIME)
+            dateStr?.let { exifDateFormat.parse(it)?.time }
+        } catch (_: Exception) {
+            null
+        }
     }
     
     private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
