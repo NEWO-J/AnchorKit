@@ -24,5 +24,10 @@ data class VerificationResult(
     val solana_tx: String? = null,
     val solana_program: String? = null,
     val chain: String? = null,
-    val message: String? = null
+    val message: String? = null,
+    // Hardware attestation — available from hot storage onward
+    val attestation_verified: Boolean? = null,
+    val cert_fingerprint: String? = null,
+    val cert_valid_from: String? = null,
+    val cert_valid_until: String? = null,
 )

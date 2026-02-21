@@ -264,6 +264,24 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val result = framechain.verify(hash)
+
+                // Attestation block — present whenever the server returns it (hot or warm storage).
+                fun StringBuilder.appendAttestationBlock() {
+                    if (result.attestation_verified == true) {
+                        appendLine()
+                        appendLine("Hardware Attestation: VERIFIED")
+                        val fp = result.cert_fingerprint
+                        if (!fp.isNullOrEmpty()) {
+                            appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
+                        }
+                        val from = result.cert_valid_from?.take(10)
+                        val until = result.cert_valid_until?.take(10)
+                        if (from != null && until != null) {
+                            appendLine("Cert valid: $from → $until")
+                        }
+                    }
+                }
+
                 if (result.verified) {
                     val tsMillis = result.timestamp?.let { it * 1000L }
                     val tsFormatted = tsMillis?.let {
@@ -282,6 +300,7 @@ class MainActivity : AppCompatActivity() {
                                 appendLine()
                                 appendLine("Solana TX: ${result.solana_tx}")
                             }
+                            appendAttestationBlock()
                         }
                     )
                 } else {
@@ -303,6 +322,7 @@ class MainActivity : AppCompatActivity() {
                                 ).format(Date(tsMillis))
                                 appendLine("Recorded:  $tsFormatted")
                             }
+                            appendAttestationBlock()
                             if (result.day.isNullOrEmpty() && result.message != null) {
                                 appendLine()
                                 appendLine(result.message)
