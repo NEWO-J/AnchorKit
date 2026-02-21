@@ -30,7 +30,12 @@ class Framechain(
     suspend fun captureAndSubmit(lifecycleOwner: LifecycleOwner): CaptureResult {
         val photo = photoCapture.capturePhoto(lifecycleOwner)
 
-        val attestation = EnclaveAttestation.sign(photo.hash.toByteArray(Charsets.UTF_8), context)
+        // Fetch a fresh server-issued nonce immediately before signing.
+        // The nonce is bound into the signed payload so the attestation cannot
+        // be replayed — the server consumes it on first use.
+        val challenge = client.fetchChallenge()
+
+        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, context)
 
         val metadata = mapOf(
             "timestamp" to photo.timestamp.toString(),
@@ -39,6 +44,7 @@ class Framechain(
 
         val receipt = client.submitHash(
             hash = photo.hash,
+            nonce = challenge.nonce,
             enclaveSignature = attestation.enclaveSignature,
             deviceAttestation = attestation.deviceAttestation,
             metadata = metadata
@@ -62,7 +68,10 @@ class Framechain(
         // hashFile reads the file and decodes a Bitmap — both are blocking I/O.
         val photo = withContext(Dispatchers.IO) { photoCapture.hashFile(file) }
 
-        val attestation = EnclaveAttestation.sign(photo.hash.toByteArray(Charsets.UTF_8), context)
+        // Fetch a fresh server-issued nonce immediately before signing.
+        val challenge = client.fetchChallenge()
+
+        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, context)
 
         val metadata = mapOf(
             "timestamp" to photo.timestamp.toString(),
@@ -71,6 +80,7 @@ class Framechain(
 
         val receipt = client.submitHash(
             hash = photo.hash,
+            nonce = challenge.nonce,
             enclaveSignature = attestation.enclaveSignature,
             deviceAttestation = attestation.deviceAttestation,
             metadata = metadata
