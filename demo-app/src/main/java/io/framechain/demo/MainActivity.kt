@@ -3,6 +3,7 @@ package io.framechain.demo
 import android.Manifest
 import android.content.ContentValues
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -74,6 +75,12 @@ class MainActivity : AppCompatActivity() {
             apiKey = BuildConfig.FRAMECHAIN_API_KEY,
             baseUrl = BuildConfig.FRAMECHAIN_BASE_URL
         )
+
+        // Always show the orange outline on the email field, not just when focused.
+        val orange = ContextCompat.getColor(this, R.color.primary)
+        val strokeStates = arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf())
+        val strokeColors = intArrayOf(orange, orange)
+        binding.tilEmail.setBoxStrokeColorStateList(ColorStateList(strokeStates, strokeColors))
 
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
