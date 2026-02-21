@@ -21,6 +21,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -164,14 +167,45 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.IO) { saveToGallery(file) }
 
                 val result = framechain.submitFile(file)
+
+                // Format the photo's actual capture timestamp (from EXIF when available,
+                // otherwise the moment the file was hashed).
+                val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
+                val capturedAt = captureTimeFmt.format(Date(result.photo.timestamp))
+
+                // Server receipt timestamp (epoch seconds → readable)
+                val serverTs = result.receipt.timestamp
+                val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
+                val receivedAt = if (serverTs != null && serverTs > 0)
+                    serverTimeFmt.format(Date(serverTs * 1000L))
+                else capturedAt
+
                 showResult(
                     buildString {
                         appendLine("Photo submitted successfully!")
                         appendLine()
-                        appendLine("Hash:    ${result.photo.hash}")
-                        appendLine("Day:     ${result.receipt.day}")
-                        appendLine("Hash ID: ${result.receipt.hash_id}")
-                        appendLine("Table:   ${result.receipt.table}")
+                        appendLine("Hash:      ${result.photo.hash}")
+                        appendLine("Captured:  $capturedAt")
+                        appendLine("Received:  $receivedAt")
+                        appendLine("Batch day: ${result.receipt.day}")
+                        appendLine("Hash ID:   ${result.receipt.hash_id}")
+                        appendLine("Table:     ${result.receipt.table}")
+
+                        // Hardware attestation block — always present on success
+                        if (result.receipt.attestation_verified == true) {
+                            appendLine()
+                            appendLine("Hardware Attestation: VERIFIED")
+                            val fp = result.receipt.cert_fingerprint
+                            if (!fp.isNullOrEmpty()) {
+                                appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
+                            }
+                            val from = result.receipt.cert_valid_from?.take(10)
+                            val until = result.receipt.cert_valid_until?.take(10)
+                            if (from != null && until != null) {
+                                appendLine("Cert valid: $from → $until")
+                            }
+                        }
+
                         appendLine()
                         appendLine("The hash will be anchored to the Solana blockchain tonight.")
                     }
@@ -231,13 +265,18 @@ class MainActivity : AppCompatActivity() {
             try {
                 val result = framechain.verify(hash)
                 if (result.verified) {
+                    val tsMillis = result.timestamp?.let { it * 1000L }
+                    val tsFormatted = tsMillis?.let {
+                        SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()).format(Date(it))
+                    } ?: "—"
+
                     showResult(
                         buildString {
                             appendLine("Hash VERIFIED on blockchain!")
                             appendLine()
                             appendLine("Hash:      ${result.hash}")
-                            appendLine("Day:       ${result.day}")
-                            appendLine("Timestamp: ${result.timestamp}")
+                            appendLine("Timestamp: $tsFormatted")
+                            appendLine("Batch day: ${result.day}")
                             appendLine("Hash ID:   ${result.hash_id}")
                             if (result.solana_tx != null) {
                                 appendLine()
