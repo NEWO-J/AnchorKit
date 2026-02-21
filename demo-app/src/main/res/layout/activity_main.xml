@@ -13,14 +13,14 @@
         android:padding="24dp">
 
         <!-- Header -->
-        <TextView
-            android:id="@+id/tvTitle"
+        <ImageView
+            android:id="@+id/ivLogo"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:textColor="@color/primary"
+            android:layout_height="56dp"
+            android:src="@drawable/framechainlogo"
+            android:contentDescription="@string/app_name"
+            android:adjustViewBounds="true"
+            android:scaleType="fitStart"
             android:layout_marginBottom="4dp" />
 
         <TextView
