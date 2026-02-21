@@ -257,114 +257,143 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun verifyHash(hash: String) {
-        setLoading(true)
-        showResult("")
+private fun verifyHash(hash: String) {
+    setLoading(true)
+    showResult("")
 
-        lifecycleScope.launch {
-            try {
-                val result = framechain.verify(hash)
+    lifecycleScope.launch {
+        try {
+            val result = framechain.verify(hash)
 
-                // Attestation block — present whenever the server returns it (hot or warm storage).
-                fun StringBuilder.appendAttestationBlock() {
-                    if (result.attestation_verified == true) {
-                        appendLine()
-                        appendLine("Hardware Attestation: VERIFIED")
-                        val fp = result.cert_fingerprint
-                        if (!fp.isNullOrEmpty()) {
-                            appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
-                        }
-                        val from = result.cert_valid_from?.take(10)
-                        val until = result.cert_valid_until?.take(10)
-                        if (from != null && until != null) {
-                            appendLine("Cert valid: $from → $until")
-                        }
+            // Attestation block — present whenever the server returns it
+            fun StringBuilder.appendAttestationBlock() {
+                if (result.attestation_verified == true) {
+                    appendLine()
+                    appendLine("Hardware Attestation: VERIFIED")
+
+                    val fp = result.cert_fingerprint
+                    if (!fp.isNullOrEmpty()) {
+                        appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
+                    }
+
+                    val from = result.cert_valid_from?.take(10)
+                    val until = result.cert_valid_until?.take(10)
+                    if (from != null && until != null) {
+                        appendLine("Cert valid: $from → $until")
                     }
                 }
+            }
 
-                if (result.verified) {
-                    val tsMillis = result.timestamp?.let { it * 1000L }
-                    val tsFormatted = tsMillis?.let {
-                        SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()).format(Date(it))
-                    } ?: "—"
+            if (result.verified) {
 
-                    showResult(
-                        buildString {
-                            appendLine("Hash VERIFIED on blockchain!")
+                val tsMillis = result.timestamp?.let { it * 1000L }
+                val tsFormatted = tsMillis?.let {
+                    SimpleDateFormat(
+                        "MMM d, yyyy 'at' h:mm:ss a z",
+                        Locale.getDefault()
+                    ).format(Date(it))
+                } ?: "—"
+
+                showResult(
+                    buildString {
+                        appendLine("Hash VERIFIED on blockchain!")
+                        appendLine()
+                        appendLine("Hash:      ${result.hash}")
+                        appendLine("Timestamp: $tsFormatted")
+                        appendLine("Batch day: ${result.day}")
+                        appendLine("Hash ID:   ${result.hash_id}")
+
+                        if (result.solana_tx != null) {
                             appendLine()
-                            appendLine("Hash:      ${result.hash}")
-                            appendLine("Timestamp: $tsFormatted")
-                            appendLine("Batch day: ${result.day}")
-                            appendLine("Hash ID:   ${result.hash_id}")
-                            if (result.solana_tx != null) {
-                                appendLine()
-                                appendLine("Solana TX: ${result.solana_tx}")
-                            }
-                            appendAttestationBlock()
+                            appendLine("Solana TX: ${result.solana_tx}")
                         }
-                    )
-                } else {
-                    showResult(
-                        buildString {
+
+                        appendAttestationBlock()
+                    }
+                )
+
+            } else {
+
+                val hasRecord =
+                    !result.day.isNullOrEmpty() || result.hash_id != null
+
+                showResult(
+                    buildString {
+                        if (hasRecord) {
                             appendLine("Photo recorded — not yet anchored to blockchain.")
                             appendLine()
                             appendLine("Hash:      ${result.hash}")
+
                             if (!result.day.isNullOrEmpty()) {
                                 appendLine("Batch day: ${result.day}")
                             }
+
                             if (result.hash_id != null) {
                                 appendLine("Hash ID:   ${result.hash_id}")
                             }
+
                             val tsMillis = result.timestamp?.let { it * 1000L }
                             if (tsMillis != null) {
                                 val tsFormatted = SimpleDateFormat(
-                                    "MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()
+                                    "MMM d, yyyy 'at' h:mm:ss a z",
+                                    Locale.getDefault()
                                 ).format(Date(tsMillis))
+
                                 appendLine("Recorded:  $tsFormatted")
                             }
+
                             appendAttestationBlock()
-                            if (result.day.isNullOrEmpty() && result.message != null) {
-                                appendLine()
-                                appendLine(result.message)
-                            } else {
-                                appendLine()
-                                appendLine("Blockchain anchor is pending — check back tomorrow.")
-                            }
-                        }
-                    )
-                }
-            } catch (e: FramechainError.NetworkError) {
-                showResult("Network error: ${e.message}")
-            } catch (e: FramechainError.ApiError) {
-                if (e.statusCode == 503 && e.body.contains("warm storage archive", ignoreCase = true)) {
-                    // Today's batch archive is still being built — the hash IS in the system
-                    // but can't be queried yet. Show a friendly pending-anchor message.
-                    val dayMatch = Regex("""\d{4}-\d{2}-\d{2}""").find(e.body)?.value
-                    showResult(
-                        buildString {
-                            appendLine("Photo recorded — not yet anchored to blockchain.")
                             appendLine()
-                            appendLine("Hash:      $hash")
-                            if (dayMatch != null) {
-                                appendLine("Batch day: $dayMatch")
-                            }
-                            appendLine()
-                            appendLine("Hardware attestation was captured at submission.")
-                            appendLine("Submission details are temporarily unavailable while")
-                            appendLine("today's archive is being processed — check back tomorrow")
-                            appendLine("for the full record and Solana transaction ID.")
+                            appendLine("Blockchain anchor is pending — check back tomorrow.")
+                        } else {
+                            appendLine(result.message ?: "Hash not found.")
                         }
-                    )
-                } else {
-                    showResult("API error ${e.statusCode}: ${e.body}")
-                }
-            } catch (e: Exception) {
-                showResult("Unexpected error: ${e.message}")
-            } finally {
-                setLoading(false)
+                    }
+                )
             }
+
+        } catch (e: FramechainError.ApiError) {
+
+            if (e.statusCode == 503 &&
+                e.body.contains("warm storage archive", ignoreCase = true)
+            ) {
+                val dayMatch =
+                    Regex("""\d{4}-\d{2}-\d{2}""").find(e.body)?.value
+
+                showResult(
+                    buildString {
+                        appendLine("Photo recorded — not yet anchored to blockchain.")
+                        appendLine()
+                        appendLine("Hash:      $hash")
+
+                        if (dayMatch != null) {
+                            appendLine("Batch day: $dayMatch")
+                        }
+
+                        appendLine()
+                        appendLine("Hardware attestation was captured at submission.")
+                        appendLine("Submission details are temporarily unavailable while")
+                        appendLine("today's archive is being processed — check back tomorrow")
+                        appendLine("for the full record and Solana transaction ID.")
+                    }
+                )
+            } else {
+                showResult("API error ${e.statusCode}: ${e.body}")
+            }
+
+        } catch (e: FramechainError.NetworkError) {
+
+            showResult("Network error: ${e.message}")
+
+        } catch (e: Exception) {
+
+            showResult("Unexpected error: ${e.message}")
+
+        } finally {
+            setLoading(false)
         }
     }
+}
 
     // -------------------------------------------------------------------------
     // UI helpers
