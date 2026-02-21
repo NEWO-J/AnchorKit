@@ -1,21 +1,21 @@
 package io.framechain.sdk
 
 import io.framechain.sdk.models.*
-import kotlinx.serialization.Serializable
-
-@Serializable
-data class AttestationChallenge(
-    val nonce: String,
-    val expires_at: Long
-)
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.decodeFromString
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+
+@Serializable
+data class AttestationChallenge(
+    val nonce: String,
+    val expires_at: Long
+)
 
 
 
