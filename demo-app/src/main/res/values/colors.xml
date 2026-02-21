@@ -6,6 +6,8 @@
     <color name="surface">#FFFFFF</color>
     <color name="text_primary">#111827</color>
     <color name="text_secondary">#6B7280</color>
+    <color name="secondary">#F97316</color>
+    <color name="secondary_dark">#EA580C</color>
     <color name="success">#10B981</color>
     <color name="error">#EF4444</color>
 </resources>
