@@ -1,18 +1,14 @@
 package io.framechain.demo
 
 import android.Manifest
-import android.content.ContentValues
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
-import android.os.Build
-import android.os.Bundle
-import android.provider.MediaStore
 import android.view.View
+import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import io.framechain.demo.databinding.ActivityMainBinding
 import io.framechain.sdk.Framechain
@@ -21,7 +17,6 @@ import io.framechain.sdk.HashUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -34,31 +29,18 @@ class MainActivity : AppCompatActivity() {
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
 
-    // Temp file written by the system camera app.
-    private var capturePhotoFile: File? = null
-
-    // Requests CAMERA (and WRITE_EXTERNAL_STORAGE on API < 29) then opens the camera.
-    private val permissionsLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { results ->
-        if (results[Manifest.permission.CAMERA] == true) {
-            launchCamera()
+    // Requests CAMERA permission then triggers captureAndSubmit.
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            triggerCaptureAndSubmit()
         } else {
             showResult("Camera permission is required to capture photos.")
         }
     }
 
-    // Opens the system camera app (full preview + capture button).
-    private val takePictureLauncher = registerForActivityResult(
-        ActivityResultContracts.TakePicture()
-    ) { success ->
-        if (success) {
-            val file = capturePhotoFile ?: return@registerForActivityResult
-            submitCapturedFile(file)
-        }
-    }
-
-    // Image picker launcher — opens the system gallery.
+    // Image picker launcher — opens the system gallery for verification lookups.
     private val photoPickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -94,95 +76,34 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun onCaptureClicked() {
-        // Build the list of permissions that still need to be granted.
-        val needed = buildList {
-            if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED
-            ) add(Manifest.permission.CAMERA)
-
-            // WRITE_EXTERNAL_STORAGE is only required below Android 10 (API 29).
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-                ContextCompat.checkSelfPermission(
-                    this@MainActivity, Manifest.permission.WRITE_EXTERNAL_STORAGE
-                ) != PackageManager.PERMISSION_GRANTED
-            ) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            triggerCaptureAndSubmit()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
-
-        if (needed.isEmpty()) launchCamera()
-        else permissionsLauncher.launch(needed.toTypedArray())
     }
 
-    private fun launchCamera() {
-        val photoFile = File(cacheDir, "photos/capture_${System.currentTimeMillis()}.jpg")
-            .also { it.parentFile?.mkdirs() }
-        capturePhotoFile = photoFile
-        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", photoFile)
-        takePictureLauncher.launch(uri)
-    }
-
-    private fun onVerifyClicked() {
-        val hash = pickedPhotoHash ?: return
-        verifyHash(hash)
-    }
-
-    // -------------------------------------------------------------------------
-    // Photo picker result
-    // -------------------------------------------------------------------------
-
-    private fun onPhotoPicked(uri: Uri) {
+    /**
+     * Invoke [Framechain.captureAndSubmit] directly.
+     *
+     * The SDK uses CameraX to capture a single frame in memory — no temp file
+     * is written — then immediately hashes it, signs with the hardware-backed
+     * key, and submits to the API.  The entire capture → attest → submit flow
+     * is an atomic SDK operation; the app never touches the raw image bytes.
+     */
+    private fun triggerCaptureAndSubmit() {
         setLoading(true)
         showResult("")
 
         lifecycleScope.launch {
             try {
-                val hash = withContext(Dispatchers.IO) {
-                    contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?.let { HashUtils.hashPhoto(it) }
-                        ?: throw IllegalStateException("Could not read selected image")
-                }
+                val result = framechain.captureAndSubmit(this@MainActivity)
 
-                pickedPhotoHash = hash
-
-                // Show thumbnail
-                binding.ivPickedPhoto.setImageURI(uri)
-                binding.ivPickedPhoto.visibility = View.VISIBLE
-
-                // Show hash
-                binding.tvPickedHash.text = getString(R.string.hash_label) + "\n" + hash
-                binding.tvPickedHash.visibility = View.VISIBLE
-
-                // Enable the verify button now that we have a hash
-                binding.btnVerify.isEnabled = true
-
-            } catch (e: Exception) {
-                showResult("Could not read photo: ${e.message}")
-            } finally {
-                setLoading(false)
-            }
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // SDK calls (run in lifecycleScope — cancelled automatically on destroy)
-    // -------------------------------------------------------------------------
-
-    private fun submitCapturedFile(file: File) {
-        setLoading(true)
-        showResult("")
-
-        lifecycleScope.launch {
-            try {
-                // Save to the user's photo gallery before submitting to the blockchain.
-                withContext(Dispatchers.IO) { saveToGallery(file) }
-
-                val result = framechain.submitFile(file)
-
-                // Format the photo's actual capture timestamp (from EXIF when available,
-                // otherwise the moment the file was hashed).
                 val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
                 val capturedAt = captureTimeFmt.format(Date(result.photo.timestamp))
 
-                // Server receipt timestamp (epoch seconds → readable)
                 val serverTs = result.receipt.timestamp
                 val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
                 val receivedAt = if (serverTs != null && serverTs > 0)
@@ -200,7 +121,6 @@ class MainActivity : AppCompatActivity() {
                         appendLine("Hash ID:   ${result.receipt.hash_id}")
                         appendLine("Table:     ${result.receipt.table}")
 
-                        // Hardware attestation block — always present on success
                         if (result.receipt.attestation_verified == true) {
                             appendLine()
                             appendLine("Hardware Attestation: VERIFIED")
@@ -219,6 +139,9 @@ class MainActivity : AppCompatActivity() {
                         appendLine("The hash will be anchored to the Solana blockchain tonight.")
                     }
                 )
+
+            } catch (e: FramechainError.DeviceIntegrityError) {
+                showResult("Device integrity check failed: ${e.message}")
             } catch (e: FramechainError.AttestationError) {
                 showResult("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
             } catch (e: FramechainError.NetworkError) {
@@ -229,180 +152,182 @@ class MainActivity : AppCompatActivity() {
                 showResult("Unexpected error: ${e.message}")
             } finally {
                 setLoading(false)
-                file.delete()
             }
         }
     }
 
-    /**
-     * Copies [file] into the public photo gallery via MediaStore so it appears
-     * in the device's Photos/Gallery app alongside other pictures.
-     *
-     * On API 29+ no extra permission is needed. On API 24–28 the caller must
-     * have already obtained WRITE_EXTERNAL_STORAGE.
-     */
-    private fun saveToGallery(file: File) {
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, file.name)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, android.os.Environment.DIRECTORY_PICTURES)
-                put(MediaStore.Images.Media.IS_PENDING, 1)
-            }
-        }
-
-        val resolver = contentResolver
-        val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return
-
-        resolver.openOutputStream(uri)?.use { out ->
-            file.inputStream().use { it.copyTo(out) }
-        }
-
-        // Flip IS_PENDING to 0 so the image becomes visible to other apps.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            values.clear()
-            values.put(MediaStore.Images.Media.IS_PENDING, 0)
-            resolver.update(uri, values, null, null)
-        }
+    private fun onVerifyClicked() {
+        val hash = pickedPhotoHash ?: return
+        verifyHash(hash)
     }
 
-private fun verifyHash(hash: String) {
-    setLoading(true)
-    showResult("")
+    // -------------------------------------------------------------------------
+    // Photo picker result (verify flow only — no submission)
+    // -------------------------------------------------------------------------
 
-    lifecycleScope.launch {
-        try {
-            val result = framechain.verify(hash)
+    private fun onPhotoPicked(uri: Uri) {
+        setLoading(true)
+        showResult("")
 
-            // Attestation block — present whenever the server returns it
-            fun StringBuilder.appendAttestationBlock() {
-                if (result.attestation_verified == true) {
-                    appendLine()
-                    appendLine("Hardware Attestation: VERIFIED")
-
-                    val fp = result.cert_fingerprint
-                    if (!fp.isNullOrEmpty()) {
-                        appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
-                    }
-
-                    val from = result.cert_valid_from?.take(10)
-                    val until = result.cert_valid_until?.take(10)
-                    if (from != null && until != null) {
-                        appendLine("Cert valid: $from → $until")
-                    }
+        lifecycleScope.launch {
+            try {
+                val hash = withContext(Dispatchers.IO) {
+                    contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?.let { HashUtils.hashPhoto(it) }
+                        ?: throw IllegalStateException("Could not read selected image")
                 }
+
+                pickedPhotoHash = hash
+
+                binding.ivPickedPhoto.setImageURI(uri)
+                binding.ivPickedPhoto.visibility = View.VISIBLE
+
+                binding.tvPickedHash.text = getString(R.string.hash_label) + "\n" + hash
+                binding.tvPickedHash.visibility = View.VISIBLE
+
+                binding.btnVerify.isEnabled = true
+
+            } catch (e: Exception) {
+                showResult("Could not read photo: ${e.message}")
+            } finally {
+                setLoading(false)
             }
+        }
+    }
 
-            if (result.verified) {
+    // -------------------------------------------------------------------------
+    // Verify
+    // -------------------------------------------------------------------------
 
-                val tsMillis = result.timestamp?.let { it * 1000L }
-                val tsFormatted = tsMillis?.let {
-                    SimpleDateFormat(
-                        "MMM d, yyyy 'at' h:mm:ss a z",
-                        Locale.getDefault()
-                    ).format(Date(it))
-                } ?: "—"
+    private fun verifyHash(hash: String) {
+        setLoading(true)
+        showResult("")
 
-                showResult(
-                    buildString {
-                        appendLine("Hash VERIFIED on blockchain!")
+        lifecycleScope.launch {
+            try {
+                val result = framechain.verify(hash)
+
+                fun StringBuilder.appendAttestationBlock() {
+                    if (result.attestation_verified == true) {
                         appendLine()
-                        appendLine("Hash:      ${result.hash}")
-                        appendLine("Timestamp: $tsFormatted")
-                        appendLine("Batch day: ${result.day}")
-                        appendLine("Hash ID:   ${result.hash_id}")
+                        appendLine("Hardware Attestation: VERIFIED")
 
-                        if (result.solana_tx != null) {
-                            appendLine()
-                            appendLine("Solana TX: ${result.solana_tx}")
+                        val fp = result.cert_fingerprint
+                        if (!fp.isNullOrEmpty()) {
+                            appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
                         }
 
-                        appendAttestationBlock()
+                        val from = result.cert_valid_from?.take(10)
+                        val until = result.cert_valid_until?.take(10)
+                        if (from != null && until != null) {
+                            appendLine("Cert valid: $from → $until")
+                        }
                     }
-                )
+                }
 
-            } else {
+                if (result.verified) {
 
-                val hasRecord =
-                    !result.day.isNullOrEmpty() || result.hash_id != null
+                    val tsMillis = result.timestamp?.let { it * 1000L }
+                    val tsFormatted = tsMillis?.let {
+                        SimpleDateFormat(
+                            "MMM d, yyyy 'at' h:mm:ss a z",
+                            Locale.getDefault()
+                        ).format(Date(it))
+                    } ?: "—"
 
-                showResult(
-                    buildString {
-                        if (hasRecord) {
-                            appendLine("Photo recorded — not yet anchored to blockchain.")
+                    showResult(
+                        buildString {
+                            appendLine("Hash VERIFIED on blockchain!")
                             appendLine()
                             appendLine("Hash:      ${result.hash}")
+                            appendLine("Timestamp: $tsFormatted")
+                            appendLine("Batch day: ${result.day}")
+                            appendLine("Hash ID:   ${result.hash_id}")
 
-                            if (!result.day.isNullOrEmpty()) {
-                                appendLine("Batch day: ${result.day}")
-                            }
-
-                            if (result.hash_id != null) {
-                                appendLine("Hash ID:   ${result.hash_id}")
-                            }
-
-                            val tsMillis = result.timestamp?.let { it * 1000L }
-                            if (tsMillis != null) {
-                                val tsFormatted = SimpleDateFormat(
-                                    "MMM d, yyyy 'at' h:mm:ss a z",
-                                    Locale.getDefault()
-                                ).format(Date(tsMillis))
-
-                                appendLine("Recorded:  $tsFormatted")
+                            if (result.solana_tx != null) {
+                                appendLine()
+                                appendLine("Solana TX: ${result.solana_tx}")
                             }
 
                             appendAttestationBlock()
+                        }
+                    )
+
+                } else {
+
+                    val hasRecord = !result.day.isNullOrEmpty() || result.hash_id != null
+
+                    showResult(
+                        buildString {
+                            if (hasRecord) {
+                                appendLine("Photo recorded — not yet anchored to blockchain.")
+                                appendLine()
+                                appendLine("Hash:      ${result.hash}")
+
+                                if (!result.day.isNullOrEmpty()) {
+                                    appendLine("Batch day: ${result.day}")
+                                }
+
+                                if (result.hash_id != null) {
+                                    appendLine("Hash ID:   ${result.hash_id}")
+                                }
+
+                                val tsMillis = result.timestamp?.let { it * 1000L }
+                                if (tsMillis != null) {
+                                    val tsFormatted = SimpleDateFormat(
+                                        "MMM d, yyyy 'at' h:mm:ss a z",
+                                        Locale.getDefault()
+                                    ).format(Date(tsMillis))
+                                    appendLine("Recorded:  $tsFormatted")
+                                }
+
+                                appendAttestationBlock()
+                                appendLine()
+                                appendLine("Blockchain anchor is pending — check back tomorrow.")
+                            } else {
+                                appendLine(result.message ?: "Hash not found.")
+                            }
+                        }
+                    )
+                }
+
+            } catch (e: FramechainError.ApiError) {
+
+                if (e.statusCode == 503 &&
+                    e.body.contains("warm storage archive", ignoreCase = true)
+                ) {
+                    val dayMatch = Regex("""\d{4}-\d{2}-\d{2}""").find(e.body)?.value
+
+                    showResult(
+                        buildString {
+                            appendLine("Photo recorded — not yet anchored to blockchain.")
                             appendLine()
-                            appendLine("Blockchain anchor is pending — check back tomorrow.")
-                        } else {
-                            appendLine(result.message ?: "Hash not found.")
+                            appendLine("Hash:      $hash")
+
+                            if (dayMatch != null) {
+                                appendLine("Batch day: $dayMatch")
+                            }
+
+                            appendLine()
+                            appendLine("Hardware attestation was captured at submission.")
+                            appendLine("Submission details are temporarily unavailable while")
+                            appendLine("today's archive is being processed — check back tomorrow")
+                            appendLine("for the full record and Solana transaction ID.")
                         }
-                    }
-                )
+                    )
+                } else {
+                    showResult("API error ${e.statusCode}: ${e.body}")
+                }
+
+            } catch (e: FramechainError.NetworkError) {
+                showResult("Network error: ${e.message}")
+            } catch (e: Exception) {
+                showResult("Unexpected error: ${e.message}")
+            } finally {
+                setLoading(false)
             }
-
-        } catch (e: FramechainError.ApiError) {
-
-            if (e.statusCode == 503 &&
-                e.body.contains("warm storage archive", ignoreCase = true)
-            ) {
-                val dayMatch =
-                    Regex("""\d{4}-\d{2}-\d{2}""").find(e.body)?.value
-
-                showResult(
-                    buildString {
-                        appendLine("Photo recorded — not yet anchored to blockchain.")
-                        appendLine()
-                        appendLine("Hash:      $hash")
-
-                        if (dayMatch != null) {
-                            appendLine("Batch day: $dayMatch")
-                        }
-
-                        appendLine()
-                        appendLine("Hardware attestation was captured at submission.")
-                        appendLine("Submission details are temporarily unavailable while")
-                        appendLine("today's archive is being processed — check back tomorrow")
-                        appendLine("for the full record and Solana transaction ID.")
-                    }
-                )
-            } else {
-                showResult("API error ${e.statusCode}: ${e.body}")
-            }
-
-        } catch (e: FramechainError.NetworkError) {
-
-            showResult("Network error: ${e.message}")
-
-        } catch (e: Exception) {
-
-            showResult("Unexpected error: ${e.message}")
-
-        } finally {
-            setLoading(false)
         }
     }
-}
 
     // -------------------------------------------------------------------------
     // Notification subscription
@@ -469,7 +394,6 @@ private fun verifyHash(hash: String) {
         binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         binding.btnCapture.isEnabled = !loading
         binding.btnPickPhoto.isEnabled = !loading
-        // btnVerify stays disabled until a photo has been picked; restore state after load
         if (loading) binding.btnVerify.isEnabled = false
         else binding.btnVerify.isEnabled = pickedPhotoHash != null
     }

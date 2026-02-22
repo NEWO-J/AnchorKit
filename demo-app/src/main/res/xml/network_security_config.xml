@@ -2,21 +2,21 @@
 <!--
     Demo-app network security config.
 
-    Allows cleartext HTTP and trusts user-installed CAs so developers can
-    point FRAMECHAIN_BASE_URL at a local dev server (http://10.0.2.2:8000,
-    self-signed HTTPS, etc.) without hitting SSL / cleartext-traffic errors.
+    System CAs only — no cleartext HTTP and no user-installed certificates.
 
-    Do NOT copy this config into a production app — use system CAs only and
-    leave cleartextTrafficPermitted at its default (false for API 28+).
+    The SDK enforces TLS certificate pinning for api.framechain.net at the
+    programmatic level (FramechainClient) regardless of this file, so pinning
+    is not duplicated here.  This config simply removes the development
+    permissions that were previously present to tighten the demo app's posture.
+
+    If you need to point FRAMECHAIN_BASE_URL at a local dev server, run the
+    server over HTTPS with a cert signed by a system-trusted CA, or use the
+    Android emulator's built-in HTTPS proxy rather than relaxing this file.
 -->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
-            <!-- Standard system CAs (covers api.framechain.net) -->
             <certificates src="system" />
-            <!-- User-installed CAs: lets devs trust a self-signed cert
-                 by adding it via Settings → Security → Install certificate -->
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
 </network-security-config>
