@@ -57,11 +57,8 @@ class FramechainClient(
     private val PRODUCTION_PINS: Set<String> = setOf(
         // Leaf cert SPKI SHA-256 — fetched 2026-02-22 from api.framechain.net
         "Y83h/Xv5lbyCuY26cBxCb1oAIdYXtn9J0QxHsEFcLYQ=",
-        // Backup pin (issuing CA SPKI) — populate before next cert rotation:
-        //   openssl s_client -connect api.framechain.net:443 -showcerts </dev/null 2>/dev/null \
-        //     | awk '/BEGIN CERTIFICATE/{c++} c==2{print} /END CERTIFICATE/ && c==2{exit}' \
-        //     | openssl x509 -pubkey -noout | openssl pkey -pubin -outform der \
-        //     | openssl dgst -sha256 -binary | base64
+        // Intermediate CA SPKI SHA-256 — fetched 2026-02-22 from api.framechain.net
+        "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
     )
 
     /**
