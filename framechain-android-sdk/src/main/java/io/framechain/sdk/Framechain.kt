@@ -5,8 +5,6 @@ import androidx.lifecycle.LifecycleOwner
 import io.framechain.sdk.models.PortableProof
 import io.framechain.sdk.models.VerificationReceipt
 import io.framechain.sdk.models.VerificationResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class Framechain(
     private val context: Context,
@@ -18,16 +16,34 @@ class Framechain(
 
     /**
      * Capture a photo, sign it with the hardware-backed attestation key, and
-     * submit the hash + attestation to the API in one step.
+     * submit the hash + attestation to the API in one atomic step.
+     *
+     * This is the **only** public method that produces an attested submission.
+     * Accepting an externally-supplied file or pre-computed hash is intentionally
+     * not supported: the SDK must be the origin of the image bytes to guarantee
+     * the chain of custody required for hardware attestation.
      *
      * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
      * before invoking this function. The SDK does not request permissions itself.
      *
+     * @throws FramechainError.DeviceIntegrityError if the device shows signs of
+     *         being rooted or having an unlocked bootloader
      * @throws FramechainError.AttestationError if the device cannot produce hardware attestation
      * @throws FramechainError.NetworkError on connectivity failures
      * @throws FramechainError.ApiError on non-2xx API responses
      */
     suspend fun captureAndSubmit(lifecycleOwner: LifecycleOwner): CaptureResult {
+        // Reject devices that show signs of being rooted or having an unlocked
+        // bootloader before touching the camera or the network.
+        // The server enforces the same policy via hardware attestation; this
+        // client-side check provides an early, descriptive error.
+        DeviceIntegrity.check()?.let { reason ->
+            throw FramechainError.DeviceIntegrityError(
+                "Submission refused: $reason. " +
+                "Attested submissions require an unmodified device with a locked bootloader."
+            )
+        }
+
         val photo = photoCapture.capturePhoto(lifecycleOwner)
 
         // Fetch a fresh server-issued nonce immediately before signing.
@@ -40,42 +56,6 @@ class Framechain(
         val metadata = mapOf(
             "timestamp" to photo.timestamp.toString(),
             "dimensions" to "${photo.width}x${photo.height}"
-        )
-
-        val receipt = client.submitHash(
-            hash = photo.hash,
-            nonce = challenge.nonce,
-            enclaveSignature = attestation.enclaveSignature,
-            deviceAttestation = attestation.deviceAttestation,
-            metadata = metadata
-        )
-
-        return CaptureResult(photo, receipt)
-    }
-
-    /**
-     * Hash an existing file, sign with the hardware-backed attestation key, and
-     * submit to the API.
-     *
-     * File reading is dispatched to [Dispatchers.IO] so it is safe to call from
-     * any coroutine context.
-     *
-     * @throws FramechainError.AttestationError if hardware attestation is unavailable
-     * @throws FramechainError.NetworkError on connectivity failures
-     * @throws FramechainError.ApiError on non-2xx API responses
-     */
-    suspend fun submitFile(file: java.io.File): CaptureResult {
-        // hashFile reads the file and decodes a Bitmap — both are blocking I/O.
-        val photo = withContext(Dispatchers.IO) { photoCapture.hashFile(file) }
-
-        // Fetch a fresh server-issued nonce immediately before signing.
-        val challenge = client.fetchChallenge()
-
-        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, context)
-
-        val metadata = mapOf(
-            "timestamp" to photo.timestamp.toString(),
-            "filename" to file.name
         )
 
         val receipt = client.submitHash(
@@ -148,10 +128,13 @@ class Framechain(
     }
 
     /**
-     * Hash photo bytes without submitting. Useful for pre-computing the hash
-     * before deciding whether to submit.
+     * Hash photo bytes using SHA-256.
+     *
+     * Internal to the SDK — callers outside this module should use the hash
+     * returned by [captureAndSubmit] or compute their own hash if they only
+     * need to call [verify].
      */
-    fun hash(photoData: ByteArray): String {
+    internal fun hash(photoData: ByteArray): String {
         return HashUtils.hashPhoto(photoData)
     }
 }

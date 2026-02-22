@@ -1,5 +1,6 @@
 package io.framechain.sdk
 
+import android.util.Base64
 import io.framechain.sdk.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -10,6 +11,14 @@ import kotlinx.serialization.decodeFromString
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.KeyStore
+import java.security.MessageDigest
+import java.security.cert.CertificateException
+import java.security.cert.X509Certificate
+import javax.net.ssl.HttpsURLConnection
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
 
 @Serializable
 data class AttestationChallenge(
@@ -17,13 +26,110 @@ data class AttestationChallenge(
     val expires_at: Long
 )
 
-
-
 class FramechainClient(
     private val apiKey: String,
     private val baseUrl: String = "https://api.framechain.net"
 ) {
     private val json = Json { ignoreUnknownKeys = true }
+
+    // -------------------------------------------------------------------------
+    // TLS Certificate Pinning
+    // -------------------------------------------------------------------------
+    //
+    // The SDK pins to the SPKI (SubjectPublicKeyInfo) SHA-256 of the production
+    // API server's certificate chain.  Pinning is applied programmatically here
+    // so it is enforced regardless of the consuming app's network_security_config.xml
+    // — a developer cannot override it by adding user-installed CAs or cleartext
+    // exceptions.
+    //
+    // How to regenerate pins when rotating certificates:
+    //   1. Run against the current server:
+    //        openssl s_client -connect api.framechain.net:443 -showcerts </dev/null 2>/dev/null \
+    //          | openssl x509 -pubkey -noout \
+    //          | openssl pkey -pubin -outform der \
+    //          | openssl dgst -sha256 -binary \
+    //          | base64
+    //   2. Add the NEW pin BEFORE rotating the certificate (include old + new).
+    //   3. Release the SDK update with both old + new pins.
+    //   4. After the old cert is retired, remove the old pin in a follow-up release.
+    //
+    // IMPORTANT: Replace the placeholder values below with actual SHA-256 SPKI
+    // hashes obtained from api.framechain.net before shipping.
+    private val PRODUCTION_HOST = "api.framechain.net"
+    private val PRODUCTION_PINS: Set<String> = setOf(
+        // Primary pin — replace with actual SPKI SHA-256 (base64) from api.framechain.net
+        // e.g. "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
+        "REPLACE_WITH_PRIMARY_SPKI_PIN_FROM_api.framechain.net=",
+        // Backup pin (e.g. issuing CA SPKI) — rotate independently of the leaf cert
+        "REPLACE_WITH_BACKUP_SPKI_PIN_FROM_api.framechain.net="
+    )
+
+    /**
+     * A custom [SSLContext] whose [X509TrustManager] performs two checks:
+     *
+     *  1. Normal PKIX chain validation delegated to the system trust manager
+     *     (validates cert chain integrity, validity dates, and trusted root CA).
+     *     This step is NOT weakened.
+     *
+     *  2. SPKI pinning against [PRODUCTION_PINS].  At least one certificate in
+     *     the server's chain must have a public key whose SHA-256 matches a
+     *     known pin.  This prevents MITM by any CA, including system-trusted ones.
+     *
+     * Applied only when connecting to [PRODUCTION_HOST]; custom baseUrl values
+     * used for development/staging go through normal system validation only.
+     */
+    private val pinnedSslContext: SSLContext by lazy {
+        val factory = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        factory.init(null as KeyStore?)
+        val systemTrustManager = factory.trustManagers
+            .filterIsInstance<X509TrustManager>()
+            .first()
+
+        val pinningTrustManager = object : X509TrustManager {
+            override fun checkClientTrusted(chain: Array<out X509Certificate>, authType: String) =
+                systemTrustManager.checkClientTrusted(chain, authType)
+
+            override fun checkServerTrusted(chain: Array<out X509Certificate>, authType: String) {
+                // Step 1 — standard PKIX chain validation.
+                systemTrustManager.checkServerTrusted(chain, authType)
+
+                // Step 2 — SPKI pinning.
+                if (PRODUCTION_PINS.isEmpty()) {
+                    throw CertificateException(
+                        "TLS certificate pins not configured for $PRODUCTION_HOST. " +
+                        "Populate PRODUCTION_PINS in FramechainClient before shipping."
+                    )
+                }
+
+                val matchesPin = chain.any { cert ->
+                    val spkiHash = Base64.encodeToString(
+                        MessageDigest.getInstance("SHA-256").digest(cert.publicKey.encoded),
+                        Base64.NO_WRAP
+                    )
+                    spkiHash in PRODUCTION_PINS
+                }
+
+                if (!matchesPin) {
+                    throw CertificateException(
+                        "TLS certificate pin mismatch for $PRODUCTION_HOST. " +
+                        "Possible MITM attack, or the server certificate was rotated without " +
+                        "updating the SDK pins. Contact support@framechain.io."
+                    )
+                }
+            }
+
+            override fun getAcceptedIssuers(): Array<X509Certificate> =
+                systemTrustManager.acceptedIssuers
+        }
+
+        SSLContext.getInstance("TLS").also { ctx ->
+            ctx.init(null, arrayOf(pinningTrustManager), null)
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
 
     /**
      * Fetch a single-use attestation challenge nonce from the server.
@@ -115,9 +221,6 @@ class FramechainClient(
     /**
      * Subscribe an email address to receive nightly batch notification emails.
      *
-     * Emails include the batch date, number of hashes archived, Merkle root,
-     * and Solana transaction ID. Every email contains a one-click unsubscribe link.
-     *
      * @param email Email address to subscribe
      * @throws FramechainError.NetworkError on I/O failures
      * @throws FramechainError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
@@ -177,9 +280,6 @@ class FramechainClient(
     /**
      * Download a portable, self-contained proof bundle for a hash.
      *
-     * The returned [PortableProof] can be stored locally and later verified
-     * without any Framechain server via [SolanaVerifier.verify].
-     *
      * @param hash SHA-256 hex hash to fetch a proof for
      * @return [PortableProof] containing the Merkle proof and on-chain references
      * @throws FramechainError.NetworkError on I/O failures
@@ -203,7 +303,15 @@ class FramechainClient(
     // -------------------------------------------------------------------------
 
     private fun openConnection(urlString: String, method: String): HttpURLConnection {
-        return (URL(urlString).openConnection() as HttpURLConnection).apply {
+        val url = URL(urlString)
+        return (url.openConnection() as HttpURLConnection).apply {
+            // Enforce SPKI certificate pinning for the production API host.
+            // Applied here in the SDK so it cannot be overridden by the consuming
+            // app's network_security_config.xml or by a developer adding a
+            // custom trust store.
+            if (this is HttpsURLConnection && url.host == PRODUCTION_HOST) {
+                sslSocketFactory = pinnedSslContext.socketFactory
+            }
             requestMethod = method
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("X-API-Key", apiKey)

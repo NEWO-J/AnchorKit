@@ -27,4 +27,17 @@ sealed class FramechainError(message: String, cause: Throwable? = null) :
     /** The camera captured a frame but hashing or encoding it failed. */
     class HashError(message: String, cause: Throwable? = null) :
         FramechainError(message, cause)
+
+    /**
+     * The device failed a client-side integrity check (rooted device, unlocked
+     * bootloader, or test-key build detected).
+     *
+     * Note: these client-side checks are defense-in-depth and can be bypassed by
+     * a sufficiently motivated attacker. The server-side hardware attestation
+     * (verifiedBootState = Verified in the Android Keystore extension) is the
+     * authoritative, cryptographically enforced gate — a jailbroken device will
+     * also be rejected there.
+     */
+    class DeviceIntegrityError(message: String, cause: Throwable? = null) :
+        FramechainError(message, cause)
 }
