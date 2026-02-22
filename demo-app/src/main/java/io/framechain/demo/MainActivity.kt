@@ -419,10 +419,13 @@ private fun verifyHash(hash: String) {
 
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) { framechain.subscribeToNotifications(email) }
-                showResult("Check your email for a confirmation link.")
+                val message = withContext(Dispatchers.IO) { framechain.subscribeToNotifications(email) }
+                showResult(message)
             } catch (e: FramechainError.ApiError) {
-                showResult("Could not subscribe (${e.statusCode}): ${e.body}")
+                val detail = runCatching {
+                    org.json.JSONObject(e.body).getString("detail")
+                }.getOrNull()
+                showResult(detail ?: "Could not subscribe (${e.statusCode}): ${e.body}")
             } catch (e: FramechainError.NetworkError) {
                 showResult("Network error: ${e.message}")
             } catch (e: Exception) {
