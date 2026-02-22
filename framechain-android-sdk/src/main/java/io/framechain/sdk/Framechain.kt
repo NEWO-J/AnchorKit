@@ -133,8 +133,8 @@ class Framechain(
      * @throws FramechainError.NetworkError on connectivity failures
      * @throws FramechainError.ApiError on non-2xx responses (401 = bad key, 422 = invalid email)
      */
-    suspend fun subscribeToNotifications(email: String) {
-        client.subscribeToNotifications(email)
+    suspend fun subscribeToNotifications(email: String): String {
+        return client.subscribeToNotifications(email)
     }
 
     /**

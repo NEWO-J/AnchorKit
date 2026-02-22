@@ -122,21 +122,18 @@ class FramechainClient(
      * @throws FramechainError.NetworkError on I/O failures
      * @throws FramechainError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
      */
-    suspend fun subscribeToNotifications(email: String): Unit = withContext(Dispatchers.IO) {
+    suspend fun subscribeToNotifications(email: String): String = withContext(Dispatchers.IO) {
         @Serializable
         data class SubscribeRequest(val email: String, val api_key: String)
+
+        @Serializable
+        data class SubscribeResponse(val message: String, val email: String)
 
         val connection = openConnection("$baseUrl/api/notifications/subscribe", "POST")
         try {
             val body = json.encodeToString(SubscribeRequest(email = email, api_key = apiKey))
             connection.outputStream.use { it.write(body.toByteArray()) }
-            val code = connection.responseCode
-            if (code !in 200..299) {
-                val errorBody = runCatching {
-                    connection.errorStream?.bufferedReader()?.readText() ?: ""
-                }.getOrDefault("")
-                throw FramechainError.ApiError(code, errorBody)
-            }
+            readResponse<SubscribeResponse>(connection).message
         } catch (e: FramechainError) {
             throw e
         } catch (e: IOException) {
