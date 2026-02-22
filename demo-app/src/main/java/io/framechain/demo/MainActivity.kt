@@ -420,7 +420,7 @@ private fun verifyHash(hash: String) {
         lifecycleScope.launch {
             try {
                 withContext(Dispatchers.IO) { framechain.subscribeToNotifications(email) }
-                showResult("Subscribed! You'll receive an email after each nightly batch.")
+                showResult("Check your email for a confirmation link.")
             } catch (e: FramechainError.ApiError) {
                 showResult("Could not subscribe (${e.statusCode}): ${e.body}")
             } catch (e: FramechainError.NetworkError) {
