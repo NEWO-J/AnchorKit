@@ -53,15 +53,12 @@ class FramechainClient(
     //   3. Release the SDK update with both old + new pins.
     //   4. After the old cert is retired, remove the old pin in a follow-up release.
     //
-    // IMPORTANT: Replace the placeholder values below with actual SHA-256 SPKI
-    // hashes obtained from api.framechain.net before shipping.
     private val PRODUCTION_HOST = "api.framechain.net"
     private val PRODUCTION_PINS: Set<String> = setOf(
-        // Primary pin — replace with actual SPKI SHA-256 (base64) from api.framechain.net
-        // e.g. "47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU="
-        "REPLACE_WITH_PRIMARY_SPKI_PIN_FROM_api.framechain.net=",
-        // Backup pin (e.g. issuing CA SPKI) — rotate independently of the leaf cert
-        "REPLACE_WITH_BACKUP_SPKI_PIN_FROM_api.framechain.net="
+        // Leaf cert SPKI SHA-256 — fetched 2026-02-22 from api.framechain.net
+        "Y83h/Xv5lbyCuY26cBxCb1oAIdYXtn9J0QxHsEFcLYQ=",
+        // Intermediate CA SPKI SHA-256 — fetched 2026-02-22 from api.framechain.net
+        "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
     )
 
     /**
