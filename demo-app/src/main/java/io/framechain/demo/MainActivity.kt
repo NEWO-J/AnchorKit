@@ -1,26 +1,24 @@
 package io.framechain.demo
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
-import android.os.Bundle
-import android.provider.MediaStore
 import android.view.View
+import android.os.Bundle
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
 import io.framechain.demo.databinding.ActivityMainBinding
-import io.framechain.sdk.CaptureResult
 import io.framechain.sdk.Framechain
 import io.framechain.sdk.FramechainError
 import io.framechain.sdk.HashUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,19 +31,26 @@ class MainActivity : AppCompatActivity() {
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
 
-    // Temp file written to by the system camera app; read once the result returns.
-    private var tempPhotoFile: File? = null
+    // Requests CAMERA permission then opens CameraActivity.
+    private val cameraPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            launchCameraActivity()
+        } else {
+            showResult("Camera permission is required to capture photos.")
+        }
+    }
 
-    // Launches the system camera app and waits for the result.
-    private val cameraLauncher = registerForActivityResult(
+    // Receives the capture result (hash + receipt fields) back from CameraActivity.
+    private val cameraActivityLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val file = tempPhotoFile ?: return@registerForActivityResult
-        tempPhotoFile = null
         if (result.resultCode == Activity.RESULT_OK) {
-            submitNativeCameraPhoto(file)
+            result.data?.let { showCaptureResult(it) }
         } else {
-            file.delete()
+            val error = result.data?.getStringExtra(CameraActivity.EXTRA_ERROR)
+            if (!error.isNullOrEmpty()) showResult(error)
         }
     }
 
@@ -85,72 +90,59 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun onCaptureClicked() {
-        val photoDir = File(cacheDir, "photos").also { it.mkdirs() }
-        val file = File.createTempFile("fc_", ".jpg", photoDir)
-        tempPhotoFile = file
-
-        val uri = FileProvider.getUriForFile(this, "${packageName}.fileprovider", file)
-        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-            putExtra(MediaStore.EXTRA_OUTPUT, uri)
-            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        }
-        cameraLauncher.launch(intent)
-    }
-
-    private fun submitNativeCameraPhoto(file: File) {
-        setLoading(true)
-        lifecycleScope.launch {
-            try {
-                val bytes = withContext(Dispatchers.IO) { file.readBytes() }
-                file.delete()
-                val result = framechain.submitPhotoBytes(bytes)
-                showCaptureResult(result)
-
-            } catch (e: FramechainError.DeviceIntegrityError) {
-                showResult("Device integrity check failed: ${e.message}")
-            } catch (e: FramechainError.AttestationError) {
-                showResult("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
-            } catch (e: FramechainError.NetworkError) {
-                showResult("Network error: ${e.message}\n\nCheck your internet connection.")
-            } catch (e: FramechainError.ApiError) {
-                showResult("API error ${e.statusCode}: ${e.body}")
-            } catch (e: Exception) {
-                showResult("Unexpected error: ${e.message}")
-            } finally {
-                setLoading(false)
-            }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            launchCameraActivity()
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
-    private fun showCaptureResult(result: CaptureResult) {
+    private fun launchCameraActivity() {
+        cameraActivityLauncher.launch(Intent(this, CameraActivity::class.java))
+    }
+
+    private fun showCaptureResult(data: Intent) {
+        val hash = data.getStringExtra(CameraActivity.EXTRA_HASH) ?: return
+        val timestampMs = data.getLongExtra(CameraActivity.EXTRA_TIMESTAMP_MS, 0L)
+        val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
+        val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
+        val table = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_TABLE)
+        val receiptTs = if (data.hasExtra(CameraActivity.EXTRA_RECEIPT_TIMESTAMP))
+            data.getLongExtra(CameraActivity.EXTRA_RECEIPT_TIMESTAMP, 0L) else null
+        val attestationVerified = data.getBooleanExtra(CameraActivity.EXTRA_ATTESTATION_VERIFIED, false)
+        val certFingerprint = data.getStringExtra(CameraActivity.EXTRA_CERT_FINGERPRINT)
+        val certValidFrom = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_FROM)
+        val certValidUntil = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_UNTIL)
+
         val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
-        val capturedAt = captureTimeFmt.format(Date(result.photo.timestamp))
+        val capturedAt = captureTimeFmt.format(Date(timestampMs))
 
         val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
-        val receivedAt = if (result.receipt.timestamp != null && result.receipt.timestamp > 0)
-            serverTimeFmt.format(Date(result.receipt.timestamp * 1000L))
+        val receivedAt = if (receiptTs != null && receiptTs > 0)
+            serverTimeFmt.format(Date(receiptTs * 1000L))
         else capturedAt
 
         showResult(
             buildString {
                 appendLine("Photo submitted successfully!")
                 appendLine()
-                appendLine("Hash:      ${result.photo.hash}")
+                appendLine("Hash:      $hash")
                 appendLine("Captured:  $capturedAt")
                 appendLine("Received:  $receivedAt")
-                appendLine("Batch day: ${result.receipt.day}")
-                appendLine("Hash ID:   ${result.receipt.hash_id}")
-                appendLine("Table:     ${result.receipt.table}")
+                if (day != null) appendLine("Batch day: $day")
+                if (hashId != null) appendLine("Hash ID:   $hashId")
+                if (table != null) appendLine("Table:     $table")
 
-                if (result.receipt.attestation_verified == true) {
+                if (attestationVerified) {
                     appendLine()
                     appendLine("Hardware Attestation: VERIFIED")
-                    val fp = result.receipt.cert_fingerprint
-                    if (!fp.isNullOrEmpty()) {
-                        appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
+                    if (!certFingerprint.isNullOrEmpty()) {
+                        appendLine("Key fingerprint: ${certFingerprint.take(16)}...${certFingerprint.takeLast(8)}")
                     }
-                    val from = result.receipt.cert_valid_from?.take(10)
-                    val until = result.receipt.cert_valid_until?.take(10)
+                    val from = certValidFrom?.take(10)
+                    val until = certValidUntil?.take(10)
                     if (from != null && until != null) {
                         appendLine("Cert valid: $from → $until")
                     }

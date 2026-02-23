@@ -45,39 +45,7 @@ class Framechain(
         }
 
         val photo = photoCapture.capturePhoto(lifecycleOwner)
-        return attestAndSubmit(photo)
-    }
 
-    /**
-     * Hash the supplied image bytes, sign with the hardware-backed attestation key,
-     * and submit to the API.
-     *
-     * Unlike [captureAndSubmit], the caller supplies the image bytes (e.g. from the
-     * system camera intent via [android.provider.MediaStore.ACTION_IMAGE_CAPTURE]).
-     * Device integrity and hardware attestation still apply — the submission is
-     * cryptographically tied to this device's hardware key — but chain-of-custody
-     * for the capture step is the caller's responsibility.
-     *
-     * @param photoData  Raw image bytes
-     * @param timestamp  Capture time in milliseconds since epoch (defaults to now)
-     */
-    suspend fun submitPhotoBytes(
-        photoData: ByteArray,
-        timestamp: Long = System.currentTimeMillis()
-    ): CaptureResult {
-        DeviceIntegrity.check()?.let { reason ->
-            throw FramechainError.DeviceIntegrityError(
-                "Submission refused: $reason. " +
-                "Attested submissions require an unmodified device with a locked bootloader."
-            )
-        }
-
-        val hash = HashUtils.hashPhoto(photoData)
-        val photo = PhotoResult(data = photoData, hash = hash, timestamp = timestamp, width = 0, height = 0)
-        return attestAndSubmit(photo)
-    }
-
-    private suspend fun attestAndSubmit(photo: PhotoResult): CaptureResult {
         // Fetch a fresh server-issued nonce immediately before signing.
         // The nonce is bound into the signed payload so the attestation cannot
         // be replayed — the server consumes it on first use.
