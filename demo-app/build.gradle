@@ -55,11 +55,6 @@ android {
 dependencies {
     implementation project(':framechain-android-sdk')
 
-    // CameraX — all three artifacts used directly in CameraActivity
-    implementation 'androidx.camera:camera-core:1.4.0'
-    implementation 'androidx.camera:camera-lifecycle:1.4.0'
-    implementation 'androidx.camera:camera-view:1.4.0'
-
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
 
