@@ -1,11 +1,18 @@
 package io.framechain.demo
 
+import android.Manifest
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
@@ -17,7 +24,9 @@ import androidx.lifecycle.lifecycleScope
 import io.framechain.demo.databinding.ActivityCameraBinding
 import io.framechain.sdk.Framechain
 import io.framechain.sdk.FramechainError
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class CameraActivity : AppCompatActivity() {
 
@@ -25,6 +34,11 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var framechain: Framechain
     private var camera: Camera? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
+
+    // Only needed for Android 9 (API 28) and below.
+    private val writeStoragePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* proceed regardless — saveToGallery checks at save time */ }
 
     private val scaleGestureDetector by lazy {
         ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -46,6 +60,15 @@ class CameraActivity : AppCompatActivity() {
             apiKey = BuildConfig.FRAMECHAIN_API_KEY,
             baseUrl = BuildConfig.FRAMECHAIN_BASE_URL
         )
+
+        // Pre-request WRITE_EXTERNAL_STORAGE on Android ≤ 9 so it's granted by
+        // the time the user taps the shutter.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            writeStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
 
         startPreview()
 
@@ -101,6 +124,11 @@ class CameraActivity : AppCompatActivity() {
             try {
                 val result = framechain.captureAndSubmit(this@CameraActivity)
 
+                // Save a copy to the device gallery so the photo appears in Photos.
+                withContext(Dispatchers.IO) {
+                    saveToGallery(result.photo.data, result.photo.timestamp)
+                }
+
                 val intent = Intent().apply {
                     putExtra(EXTRA_HASH, result.photo.hash)
                     putExtra(EXTRA_TIMESTAMP_MS, result.photo.timestamp)
@@ -127,6 +155,43 @@ class CameraActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 returnError("Unexpected error: ${e.message}")
             }
+        }
+    }
+
+    /**
+     * Write [jpegBytes] into the device's Pictures/Framechain album via MediaStore.
+     * On Android 10+ no extra permission is required. On Android 9 and below we
+     * need WRITE_EXTERNAL_STORAGE, which is requested in onCreate; if it was
+     * denied we skip the save silently so the capture flow still completes.
+     */
+    private fun saveToGallery(jpegBytes: ByteArray, timestamp: Long) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val filename = "FRAMECHAIN_$timestamp.jpg"
+        val values = ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            put(MediaStore.Images.Media.DATE_TAKEN, timestamp)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Images.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_PICTURES + "/Framechain")
+                put(MediaStore.Images.Media.IS_PENDING, 1)
+            }
+        }
+
+        val uri = contentResolver.insert(
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
+        ) ?: return
+
+        contentResolver.openOutputStream(uri)?.use { it.write(jpegBytes) }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            values.clear()
+            values.put(MediaStore.Images.Media.IS_PENDING, 0)
+            contentResolver.update(uri, values, null, null)
         }
     }
 
