@@ -1,14 +1,15 @@
 package io.framechain.demo
 
 import android.app.Activity
-import android.content.ContentValues
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
-import android.provider.MediaStore
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
@@ -22,6 +23,18 @@ class CameraActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityCameraBinding
     private lateinit var framechain: Framechain
+    private var camera: Camera? = null
+    private var lensFacing = CameraSelector.LENS_FACING_BACK
+
+    private val scaleGestureDetector by lazy {
+        ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val currentZoom = camera?.cameraInfo?.zoomState?.value?.zoomRatio ?: 1f
+                camera?.cameraControl?.setZoomRatio(currentZoom * detector.scaleFactor)
+                return true
+            }
+        })
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,7 +50,20 @@ class CameraActivity : AppCompatActivity() {
         startPreview()
 
         binding.btnClose.setOnClickListener { finish() }
+        binding.btnFlip.setOnClickListener { flipCamera() }
         binding.btnShutter.setOnClickListener { onShutterClicked() }
+
+        binding.previewView.setOnTouchListener { _, event ->
+            scaleGestureDetector.onTouchEvent(event)
+            if (event.action == MotionEvent.ACTION_UP) {
+                val point = binding.previewView.meteringPointFactory
+                    .createPoint(event.x, event.y)
+                camera?.cameraControl?.startFocusAndMetering(
+                    FocusMeteringAction.Builder(point).build()
+                )
+            }
+            true
+        }
     }
 
     private fun startPreview() {
@@ -47,13 +73,24 @@ class CameraActivity : AppCompatActivity() {
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(lensFacing)
+                .build()
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview)
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
             } catch (e: Exception) {
                 returnError("Could not open camera: ${e.message}")
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun flipCamera() {
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
+            CameraSelector.LENS_FACING_FRONT
+        else
+            CameraSelector.LENS_FACING_BACK
+        startPreview()
     }
 
     private fun onShutterClicked() {
@@ -63,7 +100,6 @@ class CameraActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val result = framechain.captureAndSubmit(this@CameraActivity)
-                val savedToGallery = saveToGallery(result.photo.data)
 
                 val intent = Intent().apply {
                     putExtra(EXTRA_HASH, result.photo.hash)
@@ -76,7 +112,6 @@ class CameraActivity : AppCompatActivity() {
                     putExtra(EXTRA_CERT_FINGERPRINT, result.receipt.cert_fingerprint)
                     putExtra(EXTRA_CERT_VALID_FROM, result.receipt.cert_valid_from)
                     putExtra(EXTRA_CERT_VALID_UNTIL, result.receipt.cert_valid_until)
-                    putExtra(EXTRA_SAVED_TO_GALLERY, savedToGallery)
                 }
                 setResult(Activity.RESULT_OK, intent)
                 finish()
@@ -101,36 +136,6 @@ class CameraActivity : AppCompatActivity() {
         finish()
     }
 
-    /**
-     * Write the captured JPEG bytes into the device gallery under Pictures/Framechain.
-     * Returns true if the save succeeded. Failure is non-fatal — the attestation result
-     * is still returned to MainActivity regardless.
-     */
-    private fun saveToGallery(data: ByteArray): Boolean {
-        return try {
-            val filename = "framechain_${System.currentTimeMillis()}.jpg"
-            val values = ContentValues().apply {
-                put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-                put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Framechain")
-                    put(MediaStore.Images.Media.IS_PENDING, 1)
-                }
-            }
-            val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                ?: return false
-            contentResolver.openOutputStream(uri)?.use { it.write(data) }
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                values.clear()
-                values.put(MediaStore.Images.Media.IS_PENDING, 0)
-                contentResolver.update(uri, values, null, null)
-            }
-            true
-        } catch (_: Exception) {
-            false
-        }
-    }
-
     companion object {
         const val EXTRA_HASH = "hash"
         const val EXTRA_TIMESTAMP_MS = "timestamp_ms"
@@ -142,7 +147,6 @@ class CameraActivity : AppCompatActivity() {
         const val EXTRA_CERT_FINGERPRINT = "cert_fingerprint"
         const val EXTRA_CERT_VALID_FROM = "cert_valid_from"
         const val EXTRA_CERT_VALID_UNTIL = "cert_valid_until"
-        const val EXTRA_SAVED_TO_GALLERY = "saved_to_gallery"
         const val EXTRA_ERROR = "error"
     }
 }

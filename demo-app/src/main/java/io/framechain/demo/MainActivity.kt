@@ -115,7 +115,6 @@ class MainActivity : AppCompatActivity() {
         val certFingerprint = data.getStringExtra(CameraActivity.EXTRA_CERT_FINGERPRINT)
         val certValidFrom = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_FROM)
         val certValidUntil = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_UNTIL)
-        val savedToGallery = data.getBooleanExtra(CameraActivity.EXTRA_SAVED_TO_GALLERY, false)
 
         val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
         val capturedAt = captureTimeFmt.format(Date(timestampMs))
@@ -147,11 +146,6 @@ class MainActivity : AppCompatActivity() {
                     if (from != null && until != null) {
                         appendLine("Cert valid: $from → $until")
                     }
-                }
-
-                if (savedToGallery) {
-                    appendLine()
-                    appendLine("Photo saved to gallery (Pictures/Framechain).")
                 }
 
                 appendLine()
