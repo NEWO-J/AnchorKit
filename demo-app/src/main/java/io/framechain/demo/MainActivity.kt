@@ -1,6 +1,8 @@
 package io.framechain.demo
 
 import android.Manifest
+import android.app.Activity
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.net.Uri
@@ -29,14 +31,26 @@ class MainActivity : AppCompatActivity() {
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
 
-    // Requests CAMERA permission then triggers captureAndSubmit.
+    // Requests CAMERA permission then opens CameraActivity.
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            triggerCaptureAndSubmit()
+            launchCameraActivity()
         } else {
             showResult("Camera permission is required to capture photos.")
+        }
+    }
+
+    // Receives the capture result (hash + receipt fields) back from CameraActivity.
+    private val cameraActivityLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.let { showCaptureResult(it) }
+        } else {
+            val error = result.data?.getStringExtra(CameraActivity.EXTRA_ERROR)
+            if (!error.isNullOrEmpty()) showResult(error)
         }
     }
 
@@ -79,81 +93,71 @@ class MainActivity : AppCompatActivity() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             == PackageManager.PERMISSION_GRANTED
         ) {
-            triggerCaptureAndSubmit()
+            launchCameraActivity()
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
-    /**
-     * Invoke [Framechain.captureAndSubmit] directly.
-     *
-     * The SDK uses CameraX to capture a single frame in memory — no temp file
-     * is written — then immediately hashes it, signs with the hardware-backed
-     * key, and submits to the API.  The entire capture → attest → submit flow
-     * is an atomic SDK operation; the app never touches the raw image bytes.
-     */
-    private fun triggerCaptureAndSubmit() {
-        setLoading(true)
-        showResult("")
+    private fun launchCameraActivity() {
+        cameraActivityLauncher.launch(Intent(this, CameraActivity::class.java))
+    }
 
-        lifecycleScope.launch {
-            try {
-                val result = framechain.captureAndSubmit(this@MainActivity)
+    private fun showCaptureResult(data: Intent) {
+        val hash = data.getStringExtra(CameraActivity.EXTRA_HASH) ?: return
+        val timestampMs = data.getLongExtra(CameraActivity.EXTRA_TIMESTAMP_MS, 0L)
+        val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
+        val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
+        val table = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_TABLE)
+        val receiptTs = if (data.hasExtra(CameraActivity.EXTRA_RECEIPT_TIMESTAMP))
+            data.getLongExtra(CameraActivity.EXTRA_RECEIPT_TIMESTAMP, 0L) else null
+        val attestationVerified = data.getBooleanExtra(CameraActivity.EXTRA_ATTESTATION_VERIFIED, false)
+        val certFingerprint = data.getStringExtra(CameraActivity.EXTRA_CERT_FINGERPRINT)
+        val certValidFrom = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_FROM)
+        val certValidUntil = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_UNTIL)
+        val savedToGallery = data.getBooleanExtra(CameraActivity.EXTRA_SAVED_TO_GALLERY, false)
 
-                val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
-                val capturedAt = captureTimeFmt.format(Date(result.photo.timestamp))
+        val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
+        val capturedAt = captureTimeFmt.format(Date(timestampMs))
 
-                val serverTs = result.receipt.timestamp
-                val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
-                val receivedAt = if (serverTs != null && serverTs > 0)
-                    serverTimeFmt.format(Date(serverTs * 1000L))
-                else capturedAt
+        val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
+        val receivedAt = if (receiptTs != null && receiptTs > 0)
+            serverTimeFmt.format(Date(receiptTs * 1000L))
+        else capturedAt
 
-                showResult(
-                    buildString {
-                        appendLine("Photo submitted successfully!")
-                        appendLine()
-                        appendLine("Hash:      ${result.photo.hash}")
-                        appendLine("Captured:  $capturedAt")
-                        appendLine("Received:  $receivedAt")
-                        appendLine("Batch day: ${result.receipt.day}")
-                        appendLine("Hash ID:   ${result.receipt.hash_id}")
-                        appendLine("Table:     ${result.receipt.table}")
+        showResult(
+            buildString {
+                appendLine("Photo submitted successfully!")
+                appendLine()
+                appendLine("Hash:      $hash")
+                appendLine("Captured:  $capturedAt")
+                appendLine("Received:  $receivedAt")
+                if (day != null) appendLine("Batch day: $day")
+                if (hashId != null) appendLine("Hash ID:   $hashId")
+                if (table != null) appendLine("Table:     $table")
 
-                        if (result.receipt.attestation_verified == true) {
-                            appendLine()
-                            appendLine("Hardware Attestation: VERIFIED")
-                            val fp = result.receipt.cert_fingerprint
-                            if (!fp.isNullOrEmpty()) {
-                                appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
-                            }
-                            val from = result.receipt.cert_valid_from?.take(10)
-                            val until = result.receipt.cert_valid_until?.take(10)
-                            if (from != null && until != null) {
-                                appendLine("Cert valid: $from → $until")
-                            }
-                        }
-
-                        appendLine()
-                        appendLine("The hash will be anchored to the Solana blockchain tonight.")
+                if (attestationVerified) {
+                    appendLine()
+                    appendLine("Hardware Attestation: VERIFIED")
+                    if (!certFingerprint.isNullOrEmpty()) {
+                        appendLine("Key fingerprint: ${certFingerprint.take(16)}...${certFingerprint.takeLast(8)}")
                     }
-                )
+                    val from = certValidFrom?.take(10)
+                    val until = certValidUntil?.take(10)
+                    if (from != null && until != null) {
+                        appendLine("Cert valid: $from → $until")
+                    }
+                }
 
-            } catch (e: FramechainError.DeviceIntegrityError) {
-                showResult("Device integrity check failed: ${e.message}")
-            } catch (e: FramechainError.AttestationError) {
-                showResult("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
-            } catch (e: FramechainError.NetworkError) {
-                showResult("Network error: ${e.message}\n\nCheck your internet connection.")
-            } catch (e: FramechainError.ApiError) {
-                showResult("API error ${e.statusCode}: ${e.body}")
-            } catch (e: Exception) {
-                showResult("Unexpected error: ${e.message}")
-            } finally {
-                setLoading(false)
+                if (savedToGallery) {
+                    appendLine()
+                    appendLine("Photo saved to gallery (Pictures/Framechain).")
+                }
+
+                appendLine()
+                appendLine("The hash will be anchored to the Solana blockchain tonight.")
             }
-        }
+        )
     }
 
     private fun onVerifyClicked() {
