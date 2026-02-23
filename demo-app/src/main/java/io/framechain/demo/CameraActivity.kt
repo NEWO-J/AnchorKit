@@ -43,7 +43,7 @@ class CameraActivity : AppCompatActivity() {
             android.widget.Toast.makeText(
                 this,
                 "Storage permission is required to save photos to your gallery. " +
-                    "Please grant it and try again.",
+                    "Without it the capture cannot complete.",
                 android.widget.Toast.LENGTH_LONG
             ).show()
         }
@@ -143,9 +143,17 @@ class CameraActivity : AppCompatActivity() {
             try {
                 val result = framechain.captureAndSubmit(this@CameraActivity)
 
-                // Save a copy to the device gallery so the photo appears in Photos.
-                withContext(Dispatchers.IO) {
+                // Save a copy to the device gallery so the user can verify the photo later.
+                // A failed save is a hard error — we do not proceed without it.
+                val saved = withContext(Dispatchers.IO) {
                     saveToGallery(result.photo.data, result.photo.timestamp)
+                }
+                if (!saved) {
+                    returnError(
+                        "Storage permission is required to save the photo to your gallery.\n\n" +
+                            "Please grant the storage permission and try again."
+                    )
+                    return@launch
                 }
 
                 val intent = Intent().apply {
@@ -180,10 +188,13 @@ class CameraActivity : AppCompatActivity() {
     /**
      * Write [jpegBytes] into the device's Pictures/Framechain album via MediaStore.
      * On Android 10+ no extra permission is required. On Android 9 and below we
-     * need WRITE_EXTERNAL_STORAGE, which is requested in onCreate; if it was
-     * denied we skip the save silently so the capture flow still completes.
+     * need WRITE_EXTERNAL_STORAGE, which is requested in onCreate.
+     *
+     * Returns `true` on success, `false` if the MediaStore insert failed (e.g.
+     * WRITE_EXTERNAL_STORAGE was denied on Android 9 and below). Callers must
+     * treat a `false` return as a hard error — the photo has not been saved.
      */
-    private fun saveToGallery(jpegBytes: ByteArray, timestamp: Long) {
+    private fun saveToGallery(jpegBytes: ByteArray, timestamp: Long): Boolean {
         val filename = "FRAMECHAIN_$timestamp.jpg"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
@@ -198,7 +209,7 @@ class CameraActivity : AppCompatActivity() {
 
         val uri = contentResolver.insert(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values
-        ) ?: return
+        ) ?: return false
 
         contentResolver.openOutputStream(uri)?.use { it.write(jpegBytes) }
 
@@ -207,6 +218,7 @@ class CameraActivity : AppCompatActivity() {
             values.put(MediaStore.Images.Media.IS_PENDING, 0)
             contentResolver.update(uri, values, null, null)
         }
+        return true
     }
 
     private fun returnError(message: String) {
