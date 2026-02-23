@@ -38,7 +38,16 @@ class CameraActivity : AppCompatActivity() {
     // Only needed for Android 9 (API 28) and below.
     private val writeStoragePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* proceed regardless — saveToGallery checks at save time */ }
+    ) { granted ->
+        if (!granted) {
+            android.widget.Toast.makeText(
+                this,
+                "Storage permission is required to save photos to your gallery. " +
+                    "Please grant it and try again.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     private val scaleGestureDetector by lazy {
         ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -117,6 +126,16 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun onShutterClicked() {
+        // On Android 9 and below, storage permission is required to save to gallery.
+        // Block the capture and prompt the user if it hasn't been granted yet.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            writeStoragePermissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+            return
+        }
+
         binding.btnShutter.isEnabled = false
         binding.capturingOverlay.visibility = View.VISIBLE
 
@@ -165,11 +184,6 @@ class CameraActivity : AppCompatActivity() {
      * denied we skip the save silently so the capture flow still completes.
      */
     private fun saveToGallery(jpegBytes: ByteArray, timestamp: Long) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                != PackageManager.PERMISSION_GRANTED
-        ) return
-
         val filename = "FRAMECHAIN_$timestamp.jpg"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
