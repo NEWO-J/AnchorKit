@@ -3,9 +3,13 @@ package io.framechain.demo
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
+import android.view.MotionEvent
+import android.view.ScaleGestureDetector
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
@@ -19,6 +23,18 @@ class CameraActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityCameraBinding
     private lateinit var framechain: Framechain
+    private var camera: Camera? = null
+    private var lensFacing = CameraSelector.LENS_FACING_BACK
+
+    private val scaleGestureDetector by lazy {
+        ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val currentZoom = camera?.cameraInfo?.zoomState?.value?.zoomRatio ?: 1f
+                camera?.cameraControl?.setZoomRatio(currentZoom * detector.scaleFactor)
+                return true
+            }
+        })
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -34,7 +50,20 @@ class CameraActivity : AppCompatActivity() {
         startPreview()
 
         binding.btnClose.setOnClickListener { finish() }
+        binding.btnFlip.setOnClickListener { flipCamera() }
         binding.btnShutter.setOnClickListener { onShutterClicked() }
+
+        binding.previewView.setOnTouchListener { _, event ->
+            scaleGestureDetector.onTouchEvent(event)
+            if (event.action == MotionEvent.ACTION_UP) {
+                val point = binding.previewView.meteringPointFactory
+                    .createPoint(event.x, event.y)
+                camera?.cameraControl?.startFocusAndMetering(
+                    FocusMeteringAction.Builder(point).build()
+                )
+            }
+            true
+        }
     }
 
     private fun startPreview() {
@@ -44,13 +73,24 @@ class CameraActivity : AppCompatActivity() {
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(lensFacing)
+                .build()
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA, preview)
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
             } catch (e: Exception) {
                 returnError("Could not open camera: ${e.message}")
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    private fun flipCamera() {
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK)
+            CameraSelector.LENS_FACING_FRONT
+        else
+            CameraSelector.LENS_FACING_BACK
+        startPreview()
     }
 
     private fun onShutterClicked() {
