@@ -15,7 +15,7 @@
 **AnchorKit** is a hardware-attested photo provenance SDK for Android (*With iOS to come*). It enables applications to distinguish real camera captures from AI-generated or manipulated media using hardware-backed cryptographic proofs.
 
 
-## ⚓ How It Works
+## How It Works
 - All media is hardware attested using **secure hardware enclave** (TEE).
 - Each night, submissions are aggregated daily into a Merkle tree, and the root hash is anchored to the Solana blockchain.
 - Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
