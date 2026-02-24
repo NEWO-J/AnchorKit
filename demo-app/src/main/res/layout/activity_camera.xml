@@ -23,7 +23,23 @@
         android:scaleType="fitCenter"
         android:src="@drawable/ic_close" />
 
-    <!-- Bottom control bar: [empty] [shutter] [flip] in three equal columns -->
+    <!-- REC indicator — visible only while recording -->
+    <TextView
+        android:id="@+id/tvRecordingIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_margin="12dp"
+        android:background="#CC000000"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="4dp"
+        android:text="● REC"
+        android:textColor="#E53935"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- Bottom control bar: [record] [shutter] [flip] in three equal columns -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="160dp"
@@ -32,11 +48,49 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- Left column: empty placeholder (balances the flip button on the right) -->
+        <!-- Left column: record / stop button -->
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:layout_weight="1" />
+            android:layout_weight="1"
+            android:gravity="center">
+
+            <FrameLayout
+                android:id="@+id/btnRecord"
+                android:layout_width="72dp"
+                android:layout_height="72dp"
+                android:layout_gravity="center"
+                android:clickable="true"
+                android:contentDescription="Record video"
+                android:focusable="true"
+                android:foreground="?android:attr/selectableItemBackgroundBorderless">
+
+                <!-- Outer white ring (same style as shutter) -->
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/bg_shutter_ring" />
+
+                <!-- Red circle — shown when not recording -->
+                <View
+                    android:id="@+id/ivRecordInner"
+                    android:layout_width="54dp"
+                    android:layout_height="54dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_record_inner" />
+
+                <!-- Red rounded square — shown while recording (tap to stop) -->
+                <View
+                    android:id="@+id/ivStopInner"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_gravity="center"
+                    android:background="@drawable/bg_stop_inner"
+                    android:visibility="gone" />
+
+            </FrameLayout>
+
+        </FrameLayout>
 
         <!-- Center: native-style ring-within-ring shutter button -->
         <FrameLayout

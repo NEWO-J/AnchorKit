@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import io.anchorkit.demo.databinding.ActivityCameraBinding
 import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitError
+import io.anchorkit.sdk.VideoRecordingSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,6 +35,10 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var anchorkit: AnchorKit
     private var camera: Camera? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
+
+    // Video recording state
+    private var isRecording = false
+    private var videoRecordingSession: VideoRecordingSession? = null
 
     // Only needed for Android 9 (API 28) and below.
     private val writeStoragePermissionLauncher = registerForActivityResult(
@@ -81,9 +86,10 @@ class CameraActivity : AppCompatActivity() {
 
         startPreview()
 
-        binding.btnClose.setOnClickListener { finish() }
+        binding.btnClose.setOnClickListener { onCloseClicked() }
         binding.btnFlip.setOnClickListener { flipCamera() }
         binding.btnShutter.setOnClickListener { onShutterClicked() }
+        binding.btnRecord.setOnClickListener { onRecordClicked() }
 
         binding.previewView.setOnTouchListener { _, event ->
             scaleGestureDetector.onTouchEvent(event)
@@ -125,9 +131,20 @@ class CameraActivity : AppCompatActivity() {
         startPreview()
     }
 
+    private fun onCloseClicked() {
+        // If recording, stop it (discard result) before closing.
+        videoRecordingSession?.stop()
+        finish()
+    }
+
+    // -------------------------------------------------------------------------
+    // Photo capture
+    // -------------------------------------------------------------------------
+
     private fun onShutterClicked() {
+        if (isRecording) return  // Shutter disabled while recording
+
         // On Android 9 and below, storage permission is required to save to gallery.
-        // Block the capture and prompt the user if it hasn't been granted yet.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED
@@ -136,17 +153,15 @@ class CameraActivity : AppCompatActivity() {
             return
         }
 
-        binding.btnShutter.isEnabled = false
+        setControlsEnabled(false)
         binding.capturingOverlay.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             try {
                 val result = anchorkit.captureAndSubmit(this@CameraActivity)
 
-                // Save a copy to the device gallery so the user can verify the photo later.
-                // A failed save is a hard error — we do not proceed without it.
                 val saved = withContext(Dispatchers.IO) {
-                    saveToGallery(result.photo.data, result.photo.timestamp)
+                    savePhotoToGallery(result.photo.data, result.photo.timestamp)
                 }
                 if (!saved) {
                     returnError(
@@ -157,6 +172,7 @@ class CameraActivity : AppCompatActivity() {
                 }
 
                 val intent = Intent().apply {
+                    putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_PHOTO)
                     putExtra(EXTRA_HASH, result.photo.hash)
                     putExtra(EXTRA_TIMESTAMP_MS, result.photo.timestamp)
                     putExtra(EXTRA_RECEIPT_DAY, result.receipt.day)
@@ -185,16 +201,117 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    // -------------------------------------------------------------------------
+    // Video recording
+    // -------------------------------------------------------------------------
+
+    private fun onRecordClicked() {
+        if (!isRecording) {
+            startRecording()
+        } else {
+            stopRecordingAndSubmit()
+        }
+    }
+
+    private fun startRecording() {
+        setControlsEnabled(false)
+        binding.btnRecord.isEnabled = true  // Keep record button active so user can stop
+
+        lifecycleScope.launch {
+            try {
+                val session = anchorkit.startVideoRecording(
+                    lifecycleOwner = this@CameraActivity,
+                    lensFacing = lensFacing,
+                    previewSurfaceProvider = binding.previewView.surfaceProvider
+                )
+                videoRecordingSession = session
+                isRecording = true
+
+                // Update record button: circle → square
+                binding.ivRecordInner.visibility = View.GONE
+                binding.ivStopInner.visibility = View.VISIBLE
+                binding.tvRecordingIndicator.visibility = View.VISIBLE
+
+            } catch (e: AnchorKitError.DeviceIntegrityError) {
+                setControlsEnabled(true)
+                returnError("Device integrity check failed: ${e.message}")
+            } catch (e: Exception) {
+                setControlsEnabled(true)
+                android.widget.Toast.makeText(
+                    this@CameraActivity,
+                    "Could not start recording: ${e.message}",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    private fun stopRecordingAndSubmit() {
+        val session = videoRecordingSession ?: return
+        isRecording = false
+        videoRecordingSession = null
+
+        // Show submitting overlay; hide REC indicator
+        binding.tvRecordingIndicator.visibility = View.GONE
+        binding.capturingOverlay.visibility = View.VISIBLE
+        setControlsEnabled(false)
+
+        lifecycleScope.launch {
+            try {
+                val result = anchorkit.stopVideoAndSubmit(session)
+
+                val saved = withContext(Dispatchers.IO) {
+                    saveVideoToGallery(result.video.file, result.video.timestamp)
+                }
+                if (!saved) {
+                    returnError(
+                        "Storage permission is required to save the video to your gallery.\n\n" +
+                            "Please grant the storage permission and try again."
+                    )
+                    return@launch
+                }
+
+                val intent = Intent().apply {
+                    putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_VIDEO)
+                    putExtra(EXTRA_HASH, result.video.hash)
+                    putExtra(EXTRA_TIMESTAMP_MS, result.video.timestamp)
+                    putExtra(EXTRA_VIDEO_DURATION_MS, result.video.durationMs)
+                    putExtra(EXTRA_RECEIPT_DAY, result.receipt.day)
+                    putExtra(EXTRA_RECEIPT_HASH_ID, result.receipt.hash_id)
+                    putExtra(EXTRA_RECEIPT_TABLE, result.receipt.table)
+                    result.receipt.timestamp?.let { putExtra(EXTRA_RECEIPT_TIMESTAMP, it) }
+                    putExtra(EXTRA_ATTESTATION_VERIFIED, result.receipt.attestation_verified ?: false)
+                    putExtra(EXTRA_CERT_FINGERPRINT, result.receipt.cert_fingerprint)
+                    putExtra(EXTRA_CERT_VALID_FROM, result.receipt.cert_valid_from)
+                    putExtra(EXTRA_CERT_VALID_UNTIL, result.receipt.cert_valid_until)
+                }
+                setResult(Activity.RESULT_OK, intent)
+                finish()
+
+            } catch (e: AnchorKitError.AttestationError) {
+                returnError("Attestation error: ${e.message}")
+            } catch (e: AnchorKitError.NetworkError) {
+                returnError("Network error: ${e.message}\n\nCheck your internet connection.")
+            } catch (e: AnchorKitError.ApiError) {
+                returnError("API error ${e.statusCode}: ${e.body}")
+            } catch (e: Exception) {
+                returnError("Unexpected error: ${e.message}")
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Gallery saving
+    // -------------------------------------------------------------------------
+
     /**
      * Write [jpegBytes] into the device's Pictures/AnchorKit album via MediaStore.
      * On Android 10+ no extra permission is required. On Android 9 and below we
      * need WRITE_EXTERNAL_STORAGE, which is requested in onCreate.
      *
-     * Returns `true` on success, `false` if the MediaStore insert failed (e.g.
-     * WRITE_EXTERNAL_STORAGE was denied on Android 9 and below). Callers must
-     * treat a `false` return as a hard error — the photo has not been saved.
+     * Returns `true` on success, `false` if the MediaStore insert failed.
      */
-    private fun saveToGallery(jpegBytes: ByteArray, timestamp: Long): Boolean {
+    private fun savePhotoToGallery(jpegBytes: ByteArray, timestamp: Long): Boolean {
         val filename = "ANCHORKIT_$timestamp.jpg"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
@@ -221,15 +338,75 @@ class CameraActivity : AppCompatActivity() {
         return true
     }
 
+    /**
+     * Copy the recorded MP4 temp [file] into the device's Movies/AnchorKit album
+     * via MediaStore, then delete the temp file.
+     *
+     * Returns `true` on success.
+     */
+    private fun saveVideoToGallery(file: java.io.File, timestamp: Long): Boolean {
+        val filename = "ANCHORKIT_$timestamp.mp4"
+        val values = ContentValues().apply {
+            put(MediaStore.Video.Media.DISPLAY_NAME, filename)
+            put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+            put(MediaStore.Video.Media.DATE_TAKEN, timestamp)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.Video.Media.RELATIVE_PATH,
+                    Environment.DIRECTORY_MOVIES + "/AnchorKit")
+                put(MediaStore.Video.Media.IS_PENDING, 1)
+            }
+        }
+
+        val uri = contentResolver.insert(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values
+        ) ?: return false
+
+        contentResolver.openOutputStream(uri)?.use { out ->
+            file.inputStream().use { it.copyTo(out) }
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            values.clear()
+            values.put(MediaStore.Video.Media.IS_PENDING, 0)
+            contentResolver.update(uri, values, null, null)
+        }
+
+        file.delete()
+        return true
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    /** Enable or disable all camera controls. During recording, record button stays enabled. */
+    private fun setControlsEnabled(enabled: Boolean) {
+        binding.btnShutter.isEnabled = enabled
+        binding.btnFlip.isEnabled = enabled
+        binding.btnRecord.isEnabled = enabled
+        binding.capturingOverlay.visibility = if (enabled) View.GONE else View.VISIBLE
+    }
+
     private fun returnError(message: String) {
+        // Reset record button state if we hit an error mid-recording
+        binding.ivRecordInner.visibility = View.VISIBLE
+        binding.ivStopInner.visibility = View.GONE
+        binding.tvRecordingIndicator.visibility = View.GONE
+        binding.capturingOverlay.visibility = View.GONE
+        setControlsEnabled(true)
+
         val intent = Intent().apply { putExtra(EXTRA_ERROR, message) }
         setResult(Activity.RESULT_CANCELED, intent)
         finish()
     }
 
     companion object {
+        const val EXTRA_MEDIA_TYPE = "media_type"
+        const val MEDIA_TYPE_PHOTO = "photo"
+        const val MEDIA_TYPE_VIDEO = "video"
         const val EXTRA_HASH = "hash"
         const val EXTRA_TIMESTAMP_MS = "timestamp_ms"
+        const val EXTRA_VIDEO_DURATION_MS = "video_duration_ms"
         const val EXTRA_RECEIPT_DAY = "receipt_day"
         const val EXTRA_RECEIPT_HASH_ID = "receipt_hash_id"
         const val EXTRA_RECEIPT_TABLE = "receipt_table"

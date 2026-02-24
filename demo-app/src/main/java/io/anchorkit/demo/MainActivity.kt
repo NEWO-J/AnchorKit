@@ -104,8 +104,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showCaptureResult(data: Intent) {
+        val mediaType = data.getStringExtra(CameraActivity.EXTRA_MEDIA_TYPE) ?: CameraActivity.MEDIA_TYPE_PHOTO
+        val isVideo = mediaType == CameraActivity.MEDIA_TYPE_VIDEO
+
         val hash = data.getStringExtra(CameraActivity.EXTRA_HASH) ?: return
         val timestampMs = data.getLongExtra(CameraActivity.EXTRA_TIMESTAMP_MS, 0L)
+        val durationMs = data.getLongExtra(CameraActivity.EXTRA_VIDEO_DURATION_MS, 0L)
         val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
         val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
         val table = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_TABLE)
@@ -126,7 +130,16 @@ class MainActivity : AppCompatActivity() {
 
         showResult(
             buildString {
-                appendLine("Photo submitted successfully!")
+                if (isVideo) {
+                    appendLine("Video submitted successfully!")
+                    appendLine()
+                    val totalSec = durationMs / 1000
+                    val mins = totalSec / 60
+                    val secs = totalSec % 60
+                    appendLine("Duration:  ${if (mins > 0) "${mins}m " else ""}${secs}s")
+                } else {
+                    appendLine("Photo submitted successfully!")
+                }
                 appendLine()
                 appendLine("Hash:      $hash")
                 appendLine("Captured:  $capturedAt")
