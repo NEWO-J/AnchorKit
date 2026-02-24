@@ -11,8 +11,10 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.ImageProxy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
+import androidx.exifinterface.media.ExifInterface
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.suspendCancellableCoroutine
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -29,9 +31,17 @@ class PhotoCapture(private val context: Context) {
      * and submitted are exactly what the camera hardware produced, with no
      * opportunity for modification between capture and hash computation.
      *
+     * SECURITY: The hash is computed on the raw JPEG bytes as delivered by the
+     * camera hardware.  We deliberately avoid decoding to a Bitmap and re-encoding
+     * because JPEG re-encoding is lossy and non-deterministic across Android
+     * versions and device OEMs — the same visual image may produce different byte
+     * sequences, invalidating the hash.  Re-encoding also strips all EXIF metadata
+     * (GPS coordinates, timestamp, device info) that the original capture carries.
+     *
      * @param lifecycleOwner Activity or Fragment — used to bind the CameraX lifecycle
      * @param lensFacing Which camera to use (default: back)
-     * @return [PhotoResult] containing the raw JPEG bytes and their SHA-256 hash
+     * @return [PhotoResult] containing the raw JPEG bytes, their SHA-256 hash, and
+     *         dimensions extracted from EXIF without re-encoding
      */
     suspend fun capturePhoto(
         lifecycleOwner: LifecycleOwner,
@@ -63,9 +73,21 @@ class PhotoCapture(private val context: Context) {
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(image: ImageProxy) {
-                            val bitmap = imageProxyToBitmap(image)
-                            val photoData = bitmapToByteArray(bitmap)
+                            // Read the raw JPEG bytes exactly as the camera delivered them.
+                            // CameraX OnImageCapturedCallback always provides planes[0] as the
+                            // complete JPEG bitstream when capture mode is JPEG (the default).
+                            val buffer = image.planes[0].buffer
+                            val photoData = ByteArray(buffer.remaining())
+                            buffer.get(photoData)
+
+                            // Hash is computed on the original camera bytes — not a re-encoded
+                            // copy.  Any later modification of the bytes would invalidate the hash.
                             val hash = HashUtils.hashPhoto(photoData)
+
+                            // Extract dimensions from EXIF embedded in the JPEG without
+                            // decoding the full raster.  This avoids the re-encoding round-trip
+                            // while still providing dimension metadata for display purposes.
+                            val (width, height) = extractDimensions(photoData)
 
                             image.close()
 
@@ -74,8 +96,8 @@ class PhotoCapture(private val context: Context) {
                                     data = photoData,
                                     hash = hash,
                                     timestamp = System.currentTimeMillis(),
-                                    width = bitmap.width,
-                                    height = bitmap.height
+                                    width = width,
+                                    height = height
                                 )
                             )
                         }
@@ -91,17 +113,33 @@ class PhotoCapture(private val context: Context) {
         }, ContextCompat.getMainExecutor(context))
     }
 
-    private fun imageProxyToBitmap(image: ImageProxy): Bitmap {
-        val buffer = image.planes[0].buffer
-        val bytes = ByteArray(buffer.remaining())
-        buffer.get(bytes)
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-    }
-
-    private fun bitmapToByteArray(bitmap: Bitmap, quality: Int = 95): ByteArray {
-        val stream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, quality, stream)
-        return stream.toByteArray()
+    /**
+     * Extract image dimensions from a JPEG byte array by reading the EXIF/SOF
+     * headers — without decoding the full raster image.
+     *
+     * Falls back to (0, 0) if the bytes cannot be parsed as a JPEG with
+     * recognizable dimension headers; callers must handle the zero case.
+     */
+    private fun extractDimensions(jpegBytes: ByteArray): Pair<Int, Int> {
+        return try {
+            val exif = ExifInterface(ByteArrayInputStream(jpegBytes))
+            val w = exif.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, 0)
+            val h = exif.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, 0)
+            if (w > 0 && h > 0) {
+                Pair(w, h)
+            } else {
+                // ExifInterface couldn't find dimension tags — decode just the
+                // header (inSampleSize large to avoid loading the full image).
+                val opts = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                    inSampleSize = 16
+                }
+                BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size, opts)
+                Pair(maxOf(opts.outWidth, 0), maxOf(opts.outHeight, 0))
+            }
+        } catch (_: Exception) {
+            Pair(0, 0)
+        }
     }
 }
 

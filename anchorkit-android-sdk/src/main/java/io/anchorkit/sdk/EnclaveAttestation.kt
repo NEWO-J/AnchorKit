@@ -9,6 +9,7 @@ import android.util.Base64
 import org.json.JSONArray
 import java.security.KeyPairGenerator
 import java.security.KeyStore
+import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
@@ -31,7 +32,22 @@ object EnclaveAttestation {
     private const val KEY_ALIAS = "anchorkit_attestation_key"
     private const val PREFS_NAME = "anchorkit_prefs"
     private const val PREF_CHALLENGE = "attestation_challenge"
+    private const val PREF_KEY_CREATED_AT = "key_created_at_ms"
     private const val ALGORITHM = "SHA256withECDSA"
+
+    /**
+     * Maximum age of the attestation key before it is regenerated.
+     *
+     * The attestation certificate's RootOfTrust.verifiedBootState is captured at
+     * key-generation time.  A key that was generated when the device was clean
+     * continues to carry a "Verified" boot state even if the device is later
+     * rooted.  Forcing periodic regeneration limits the window during which a
+     * compromised device can masquerade as clean.
+     *
+     * 30 days balances freshness against the cost of regenerating the key (which
+     * produces a new attestation certificate that requires server validation).
+     */
+    private const val KEY_MAX_AGE_MS: Long = 30L * 24 * 60 * 60 * 1000  // 30 days
 
     data class AttestationResult(
         /** Base64-encoded DER ECDSA signature over the submitted data. */
@@ -44,22 +60,32 @@ object EnclaveAttestation {
     )
 
     /**
-     * Sign [hash] bound to [nonce] with the hardware-backed key and return both
-     * the signature and the attestation certificate chain.
+     * Sign [hash], [nonce], and a digest of [metadata] with the hardware-backed
+     * key and return both the signature and the attestation certificate chain.
      *
-     * The signed payload is  ``"${hash}:${nonce}"``  encoded as UTF-8.  Binding
-     * the server-issued nonce into the signed data means a captured attestation
-     * cannot be replayed — the server consumes the nonce on first use and will
-     * reject any subsequent submission carrying the same nonce.
+     * Signed payload (UTF-8):
+     *   ``"${hash}:${nonce}:${metadataHash}"``
      *
-     * Generates the key on first call; subsequent calls reuse the existing key.
+     * where ``metadataHash`` is the lowercase hex SHA-256 of the canonical
+     * metadata string  ``"key1=value1,key2=value2"``  with keys sorted
+     * lexicographically.
      *
-     * @param hash Lowercase hex SHA-256 hash of the photo (64 chars)
-     * @param nonce Single-use challenge nonce obtained from GET /api/attestation-challenge
-     * @param context Android context used to access the Keystore
+     * Binding the server-issued nonce prevents replay attacks.
+     * Binding the metadata hash prevents a MITM from altering the metadata
+     * (timestamp, dimensions) in transit without invalidating the signature.
+     *
+     * Generates the key on first call; regenerates after KEY_MAX_AGE_MS to
+     * limit the window during which a compromised device can still present an
+     * old "Verified" boot-state certificate.
+     *
+     * @param hash     Lowercase hex SHA-256 hash of the photo (64 chars)
+     * @param nonce    Single-use challenge nonce from GET /api/attestation-challenge
+     * @param metadata Key-value pairs included verbatim in the submit request
+     * @param context  Android context used to access the Keystore
      */
-    fun sign(hash: String, nonce: String, context: Context): AttestationResult {
-        val data = "$hash:$nonce".toByteArray(Charsets.UTF_8)
+    fun sign(hash: String, nonce: String, metadata: Map<String, String>, context: Context): AttestationResult {
+        val metadataHash = hashMetadata(metadata)
+        val data = "$hash:$nonce:$metadataHash".toByteArray(Charsets.UTF_8)
         ensureKeyExists(context)
 
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -104,9 +130,40 @@ object EnclaveAttestation {
 
     private fun ensureKeyExists(context: Context) {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        if (!keyStore.containsAlias(KEY_ALIAS)) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+        val keyExists = keyStore.containsAlias(KEY_ALIAS)
+        val createdAt = prefs.getLong(PREF_KEY_CREATED_AT, 0L)
+        val ageMs = System.currentTimeMillis() - createdAt
+        val expired = keyExists && ageMs > KEY_MAX_AGE_MS
+
+        if (!keyExists || expired) {
+            if (expired) {
+                // Delete the old key so the new one gets a fresh RootOfTrust
+                // certificate reflecting the device's current boot state.
+                if (keyStore.containsAlias(KEY_ALIAS)) {
+                    keyStore.deleteEntry(KEY_ALIAS)
+                }
+            }
             generateKey(context)
+            prefs.edit().putLong(PREF_KEY_CREATED_AT, System.currentTimeMillis()).apply()
         }
+    }
+
+    /**
+     * Compute a deterministic SHA-256 digest of the metadata map for inclusion
+     * in the signed payload.
+     *
+     * Keys are sorted lexicographically so the digest is stable regardless of
+     * insertion order.  Format: ``"key1=value1,key2=value2"``  (sorted by key).
+     */
+    private fun hashMetadata(metadata: Map<String, String>): String {
+        val canonical = metadata.entries
+            .sortedBy { it.key }
+            .joinToString(",") { "${it.key}=${it.value}" }
+        val digest = MessageDigest.getInstance("SHA-256")
+        return digest.digest(canonical.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
     }
 
     private fun generateKey(context: Context) {

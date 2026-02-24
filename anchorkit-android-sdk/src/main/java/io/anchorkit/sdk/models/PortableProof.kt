@@ -39,9 +39,21 @@ data class PortableProof(
     val solana_program: String,
     /**
      * Base-58 address of the on-chain MerkleRootRegistry account for this day.
-     * Pass directly to Solana's getAccountInfo RPC — no PDA derivation needed.
+     *
+     * SECURITY: [SolanaVerifier] re-derives the expected PDA from [solana_program]
+     * and [solana_chunk_index] and compares it to this value.  A tampered proof
+     * bundle that points [solana_registry_pda] at an attacker-controlled account
+     * will be rejected because the re-derived PDA will not match.
      */
     val solana_registry_pda: String? = null,
+    /**
+     * On-chain chunk index used to derive [solana_registry_pda].
+     *
+     * The PDA seed is  ``["merkle_registry", chunk_index_le_u16]``.
+     * [SolanaVerifier] derives the expected address from this index and
+     * [solana_program], then checks it matches [solana_registry_pda].
+     */
+    val solana_chunk_index: Int? = null,
     /** Solana transaction signature that wrote this root (for audit trail). */
     val solana_tx: String? = null,
     /** Network the root was anchored on ("devnet" or "mainnet"). */
