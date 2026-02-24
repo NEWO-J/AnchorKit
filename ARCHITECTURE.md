@@ -1,34 +1,10 @@
-<p align="center">
-  <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
-</p>
+# AnchorKit Architecture Diagrams
 
-<p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue"/>
-  <img alt="API Level" src="https://img.shields.io/badge/API-24%2B-brightgreen"/>
-  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.1.0-purple?logo=kotlin"/>
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-green"/>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android"/>
-</p>
+Three diagrams covering the full lifecycle of a photo in the AnchorKit system.
 
-**AnchorKit** is a hardware-attested photo provenance SDK for Android (*With iOS to come*).
-It lets you prove, cryptographically, that a real photo was taken by a specific physical device, at a specific time.
+---
 
-
-## ⚓ How It Works
-- All media is hardware attested using **secure hardware enclave** (TEE).
-- Each night, submissions are aggregated daily into a Merkle tree, and the root hash is anchored to the Solana blockchain.
-- Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
-- Verification requires only the proof bundle and a single Solana RPC call.
-- Drop-in integration - integrates within your app's existing camera pipeline with minimal code changes.
-
-## 🏴‍☠️ Capturing Truth at The Source
-
-## Anchor Demo
-
-
-## Architecture
-
-### Photo Submission Pipeline
+## 1 · Photo Submission Pipeline
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════╗
@@ -152,7 +128,7 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
 
 ---
 
-### Online Verification
+## 2 · Online Verification
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════╗
@@ -210,14 +186,15 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
   │  • Requires active internet connection                                │
   │  • Caller trusts the AnchorKit API server to report accurately       │
   │  • API performs Solana lookups on your behalf                         │
-  │  • merkle_proof is included so the caller CAN re-verify math locally │
+  │  • merkle_proof is included in the response so the caller CAN        │
+  │    independently re-verify the math if desired                       │
   │  • Fastest method; no local crypto work                               │
   └──────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### Offline Proof Bundle Verification
+## 3 · Offline Proof Bundle Verification
 
 ```
 ╔══════════════════════════════════════════════════════════════════════════════════╗
@@ -335,7 +312,3 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
   │  • Steps 1, 2, 4 are pure cryptographic math — cannot be forged     │
   └──────────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## Installation

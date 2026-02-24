@@ -2,10 +2,10 @@
 <resources>
     <color name="primary">#F97316</color>
     <color name="primary_dark">#EA580C</color>
-    <color name="background">#F8F9FA</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="text_primary">#111827</color>
-    <color name="text_secondary">#6B7280</color>
+    <color name="background">#0D1B3E</color>
+    <color name="surface">#162347</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#94A3B8</color>
     <color name="secondary">#F97316</color>
     <color name="secondary_dark">#EA580C</color>
     <color name="success">#10B981</color>
