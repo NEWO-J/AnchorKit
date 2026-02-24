@@ -19,7 +19,7 @@
 - AnchorKit integrates with your existing CameraX pipeline via a single API call — no camera rewrites required.
 - All media captured is hardware attested using **secure hardware enclave** (TEE), then sent to the backend.
 - Each night, submissions are aggregated into a daily Merkle tree, and the root hash is anchored to the Solana blockchain.
-- Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
+- Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any other third party.
 - Verification requires only the proof bundle and a single Solana RPC call.
 > [!NOTE]
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
