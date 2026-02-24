@@ -1,6 +1,8 @@
+# AnchorKit - Your camera, under oath.
 <p align="center">
   <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
 </p>
+
 
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue"/>
@@ -10,8 +12,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android"/>
 </p>
 
-**AnchorKit** is a hardware-attested photo provenance SDK for Android (*With iOS to come*).
-It lets you prove, cryptographically, that a real photo was taken by a specific physical device, at a specific time.
+**AnchorKit** is a hardware-attested photo provenance SDK for Android (*With iOS to come*). It enables applications to distinguish real camera captures from AI-generated or manipulated media using hardware-backed cryptographic proofs.
 
 
 ## ⚓ How It Works
