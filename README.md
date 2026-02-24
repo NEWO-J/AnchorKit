@@ -16,7 +16,7 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
 
 - All media is hardware attested using **secure hardware enclave** (TEE).
 - Each night, submissions are aggregated daily into a Merkle tree, and the root hash is anchored to the Solana blockchain.
-- Proofs are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
+- Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
 - Verification requires only the proof bundle and a single Solana RPC call.
 
 
