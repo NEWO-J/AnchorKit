@@ -17,7 +17,7 @@
             android:id="@+id/ivLogo"
             android:layout_width="wrap_content"
             android:layout_height="56dp"
-            android:src="@drawable/anchorkitlogo"
+            android:src="@drawable/anchorkit_logo"
             android:contentDescription="@string/app_name"
             android:adjustViewBounds="true"
             android:scaleType="fitStart"
