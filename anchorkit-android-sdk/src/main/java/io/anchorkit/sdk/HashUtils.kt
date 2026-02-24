@@ -1,4 +1,4 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import java.security.MessageDigest
 

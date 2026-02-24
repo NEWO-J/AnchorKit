@@ -4,12 +4,12 @@
 
     System CAs only — no cleartext HTTP and no user-installed certificates.
 
-    The SDK enforces TLS certificate pinning for api.framechain.net at the
-    programmatic level (FramechainClient) regardless of this file, so pinning
+    The SDK enforces TLS certificate pinning for api.anchorkit.net at the
+    programmatic level (AnchorKitClient) regardless of this file, so pinning
     is not duplicated here.  This config simply removes the development
     permissions that were previously present to tighten the demo app's posture.
 
-    If you need to point FRAMECHAIN_BASE_URL at a local dev server, run the
+    If you need to point ANCHORKIT_BASE_URL at a local dev server, run the
     server over HTTPS with a cert signed by a system-trusted CA, or use the
     Android emulator's built-in HTTPS proxy rather than relaxing this file.
 -->

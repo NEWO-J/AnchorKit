@@ -1,17 +1,17 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import android.content.Context
 import androidx.lifecycle.LifecycleOwner
-import io.framechain.sdk.models.PortableProof
-import io.framechain.sdk.models.VerificationReceipt
-import io.framechain.sdk.models.VerificationResult
+import io.anchorkit.sdk.models.PortableProof
+import io.anchorkit.sdk.models.VerificationReceipt
+import io.anchorkit.sdk.models.VerificationResult
 
-class Framechain(
+class AnchorKit(
     private val context: Context,
     apiKey: String,
-    baseUrl: String = "https://api.framechain.net"
+    baseUrl: String = "https://api.anchorkit.net"
 ) {
-    private val client = FramechainClient(apiKey, baseUrl)
+    private val client = AnchorKitClient(apiKey, baseUrl)
     private val photoCapture = PhotoCapture(context)
 
     /**
@@ -26,11 +26,11 @@ class Framechain(
      * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
      * before invoking this function. The SDK does not request permissions itself.
      *
-     * @throws FramechainError.DeviceIntegrityError if the device shows signs of
+     * @throws AnchorKitError.DeviceIntegrityError if the device shows signs of
      *         being rooted or having an unlocked bootloader
-     * @throws FramechainError.AttestationError if the device cannot produce hardware attestation
-     * @throws FramechainError.NetworkError on connectivity failures
-     * @throws FramechainError.ApiError on non-2xx API responses
+     * @throws AnchorKitError.AttestationError if the device cannot produce hardware attestation
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError on non-2xx API responses
      */
     suspend fun captureAndSubmit(lifecycleOwner: LifecycleOwner): CaptureResult {
         // Reject devices that show signs of being rooted or having an unlocked
@@ -38,7 +38,7 @@ class Framechain(
         // The server enforces the same policy via hardware attestation; this
         // client-side check provides an early, descriptive error.
         DeviceIntegrity.check()?.let { reason ->
-            throw FramechainError.DeviceIntegrityError(
+            throw AnchorKitError.DeviceIntegrityError(
                 "Submission refused: $reason. " +
                 "Attested submissions require an unmodified device with a locked bootloader."
             )
@@ -72,8 +72,8 @@ class Framechain(
     /**
      * Verify whether a hash has been anchored to the blockchain.
      *
-     * @throws FramechainError.NetworkError on connectivity failures
-     * @throws FramechainError.ApiError on non-2xx API responses
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError on non-2xx API responses
      */
     suspend fun verify(hash: String): VerificationResult {
         return client.verifyHash(hash)
@@ -83,17 +83,17 @@ class Framechain(
      * Download a portable, self-contained proof bundle for a hash.
      *
      * Store the returned [PortableProof] in your own database. Once stored,
-     * call [verifyLocally] at any future time without needing Framechain's servers.
+     * call [verifyLocally] at any future time without needing AnchorKit's servers.
      *
-     * @throws FramechainError.NetworkError on connectivity failures
-     * @throws FramechainError.ApiError if the hash has not yet been anchored (HTTP 404/202)
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError if the hash has not yet been anchored (HTTP 404/202)
      */
     suspend fun downloadProof(hash: String): PortableProof {
         return client.downloadProof(hash)
     }
 
     /**
-     * Verify a [PortableProof] without contacting the Framechain API.
+     * Verify a [PortableProof] without contacting the AnchorKit API.
      *
      * Performs two independent checks:
      * 1. Local SHA-256 Merkle math — no network.
@@ -110,8 +110,8 @@ class Framechain(
      * Subscribe an email address to receive a notification email after each
      * nightly batch is archived and anchored to Solana.
      *
-     * @throws FramechainError.NetworkError on connectivity failures
-     * @throws FramechainError.ApiError on non-2xx responses (401 = bad key, 422 = invalid email)
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError on non-2xx responses (401 = bad key, 422 = invalid email)
      */
     suspend fun subscribeToNotifications(email: String): String {
         return client.subscribeToNotifications(email)
@@ -120,8 +120,8 @@ class Framechain(
     /**
      * Unsubscribe an email address from nightly batch notifications.
      *
-     * @throws FramechainError.NetworkError on connectivity failures
-     * @throws FramechainError.ApiError on non-2xx responses
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError on non-2xx responses
      */
     suspend fun unsubscribeFromNotifications(email: String) {
         client.unsubscribeFromNotifications(email)

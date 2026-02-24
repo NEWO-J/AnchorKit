@@ -1,4 +1,4 @@
-package io.framechain.sdk.models
+package io.anchorkit.sdk.models
 
 import kotlinx.serialization.Serializable
 

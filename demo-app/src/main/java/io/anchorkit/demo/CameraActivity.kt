@@ -1,4 +1,4 @@
-package io.framechain.demo
+package io.anchorkit.demo
 
 import android.Manifest
 import android.app.Activity
@@ -21,9 +21,9 @@ import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import io.framechain.demo.databinding.ActivityCameraBinding
-import io.framechain.sdk.Framechain
-import io.framechain.sdk.FramechainError
+import io.anchorkit.demo.databinding.ActivityCameraBinding
+import io.anchorkit.sdk.AnchorKit
+import io.anchorkit.sdk.AnchorKitError
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
 class CameraActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityCameraBinding
-    private lateinit var framechain: Framechain
+    private lateinit var anchorkit: AnchorKit
     private var camera: Camera? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
 
@@ -64,10 +64,10 @@ class CameraActivity : AppCompatActivity() {
         binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        framechain = Framechain(
+        anchorkit = AnchorKit(
             context = this,
-            apiKey = BuildConfig.FRAMECHAIN_API_KEY,
-            baseUrl = BuildConfig.FRAMECHAIN_BASE_URL
+            apiKey = BuildConfig.ANCHORKIT_API_KEY,
+            baseUrl = BuildConfig.ANCHORKIT_BASE_URL
         )
 
         // Pre-request WRITE_EXTERNAL_STORAGE on Android ≤ 9 so it's granted by
@@ -141,7 +141,7 @@ class CameraActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val result = framechain.captureAndSubmit(this@CameraActivity)
+                val result = anchorkit.captureAndSubmit(this@CameraActivity)
 
                 // Save a copy to the device gallery so the user can verify the photo later.
                 // A failed save is a hard error — we do not proceed without it.
@@ -171,13 +171,13 @@ class CameraActivity : AppCompatActivity() {
                 setResult(Activity.RESULT_OK, intent)
                 finish()
 
-            } catch (e: FramechainError.DeviceIntegrityError) {
+            } catch (e: AnchorKitError.DeviceIntegrityError) {
                 returnError("Device integrity check failed: ${e.message}")
-            } catch (e: FramechainError.AttestationError) {
+            } catch (e: AnchorKitError.AttestationError) {
                 returnError("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
-            } catch (e: FramechainError.NetworkError) {
+            } catch (e: AnchorKitError.NetworkError) {
                 returnError("Network error: ${e.message}\n\nCheck your internet connection.")
-            } catch (e: FramechainError.ApiError) {
+            } catch (e: AnchorKitError.ApiError) {
                 returnError("API error ${e.statusCode}: ${e.body}")
             } catch (e: Exception) {
                 returnError("Unexpected error: ${e.message}")
@@ -186,7 +186,7 @@ class CameraActivity : AppCompatActivity() {
     }
 
     /**
-     * Write [jpegBytes] into the device's Pictures/Framechain album via MediaStore.
+     * Write [jpegBytes] into the device's Pictures/AnchorKit album via MediaStore.
      * On Android 10+ no extra permission is required. On Android 9 and below we
      * need WRITE_EXTERNAL_STORAGE, which is requested in onCreate.
      *
@@ -195,14 +195,14 @@ class CameraActivity : AppCompatActivity() {
      * treat a `false` return as a hard error — the photo has not been saved.
      */
     private fun saveToGallery(jpegBytes: ByteArray, timestamp: Long): Boolean {
-        val filename = "FRAMECHAIN_$timestamp.jpg"
+        val filename = "ANCHORKIT_$timestamp.jpg"
         val values = ContentValues().apply {
             put(MediaStore.Images.Media.DISPLAY_NAME, filename)
             put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
             put(MediaStore.Images.Media.DATE_TAKEN, timestamp)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 put(MediaStore.Images.Media.RELATIVE_PATH,
-                    Environment.DIRECTORY_PICTURES + "/Framechain")
+                    Environment.DIRECTORY_PICTURES + "/AnchorKit")
                 put(MediaStore.Images.Media.IS_PENDING, 1)
             }
         }

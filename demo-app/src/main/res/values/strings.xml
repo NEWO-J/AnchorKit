@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Framechain Demo</string>
+    <string name="app_name">AnchorKit Demo</string>
     <string name="subtitle">Hardware-attested photo provenance on Solana</string>
 
     <string name="capture_title">Capture &amp; Submit</string>
-    <string name="capture_desc">Take a photo. Its SHA-256 hash will be signed by this device\'s hardware security chip and submitted to the Framechain API for nightly anchoring on the Solana blockchain.</string>
+    <string name="capture_desc">Take a photo. Its SHA-256 hash will be signed by this device\'s hardware security chip and submitted to the AnchorKit API for nightly anchoring on the Solana blockchain.</string>
     <string name="btn_capture">Capture Photo &amp; Submit</string>
 
     <string name="verify_title">Verify a Photo</string>

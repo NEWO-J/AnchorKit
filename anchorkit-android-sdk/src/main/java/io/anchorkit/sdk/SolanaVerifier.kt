@@ -1,7 +1,7 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import android.util.Base64
-import io.framechain.sdk.models.PortableProof
+import io.anchorkit.sdk.models.PortableProof
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -16,7 +16,7 @@ import java.nio.ByteOrder
 import java.security.MessageDigest
 
 /**
- * Verifies a [PortableProof] without trusting the Framechain API.
+ * Verifies a [PortableProof] without trusting the AnchorKit API.
  *
  * Two independent checks are performed:
  *
@@ -28,7 +28,7 @@ import java.security.MessageDigest
  *    Merkle root recorded for [PortableProof.day]. Compares it to
  *    [PortableProof.merkle_root].
  *
- * No Framechain server is contacted during either step.
+ * No AnchorKit server is contacted during either step.
  *
  * ### On-chain account layout (borsh, after 8-byte Anchor discriminator)
  * ```
@@ -71,7 +71,7 @@ object SolanaVerifier {
      * 1. Local Merkle proof math (no network).
      * 2. Direct Solana on-chain root lookup (uses [PortableProof.solana_registry_pda]).
      *
-     * @param proof   A bundle previously obtained from [FramechainClient.downloadProof].
+     * @param proof   A bundle previously obtained from [AnchorKitClient.downloadProof].
      * @param network Override the network; defaults to [PortableProof.chain].
      */
     suspend fun verify(

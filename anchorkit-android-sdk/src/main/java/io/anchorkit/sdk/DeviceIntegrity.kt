@@ -1,4 +1,4 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import android.os.Build
 import java.io.File
@@ -7,7 +7,7 @@ import java.io.File
  * Best-effort client-side device integrity checks.
  *
  * These checks detect common indicators of a rooted device or an unlocked
- * bootloader and are performed at the start of [Framechain.captureAndSubmit]
+ * bootloader and are performed at the start of [AnchorKit.captureAndSubmit]
  * so that users get an actionable error immediately rather than a cryptic
  * server rejection.
  *
@@ -46,7 +46,7 @@ internal object DeviceIntegrity {
      * Run all integrity checks and return a human-readable description of
      * the first problem found, or null if the device appears clean.
      *
-     * Called from [Framechain.captureAndSubmit] before any camera or network
+     * Called from [AnchorKit.captureAndSubmit] before any camera or network
      * work is performed.
      */
     internal fun check(): String? {

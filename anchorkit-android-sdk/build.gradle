@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace 'io.framechain.sdk'
+    namespace 'io.anchorkit.sdk'
     compileSdk 34
     
     defaultConfig {

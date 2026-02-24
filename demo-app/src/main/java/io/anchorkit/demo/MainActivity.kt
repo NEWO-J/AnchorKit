@@ -1,4 +1,4 @@
-package io.framechain.demo
+package io.anchorkit.demo
 
 import android.Manifest
 import android.app.Activity
@@ -12,10 +12,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import io.framechain.demo.databinding.ActivityMainBinding
-import io.framechain.sdk.Framechain
-import io.framechain.sdk.FramechainError
-import io.framechain.sdk.HashUtils
+import io.anchorkit.demo.databinding.ActivityMainBinding
+import io.anchorkit.sdk.AnchorKit
+import io.anchorkit.sdk.AnchorKitError
+import io.anchorkit.sdk.HashUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -26,7 +26,7 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var framechain: Framechain
+    private lateinit var anchorkit: AnchorKit
 
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
@@ -66,10 +66,10 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        framechain = Framechain(
+        anchorkit = AnchorKit(
             context = this,
-            apiKey = BuildConfig.FRAMECHAIN_API_KEY,
-            baseUrl = BuildConfig.FRAMECHAIN_BASE_URL
+            apiKey = BuildConfig.ANCHORKIT_API_KEY,
+            baseUrl = BuildConfig.ANCHORKIT_BASE_URL
         )
 
         // Always show the orange outline on the email field, not just when focused.
@@ -203,7 +203,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val result = framechain.verify(hash)
+                val result = anchorkit.verify(hash)
 
                 fun StringBuilder.appendAttestationBlock() {
                     if (result.attestation_verified == true) {
@@ -289,7 +289,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-            } catch (e: FramechainError.ApiError) {
+            } catch (e: AnchorKitError.ApiError) {
 
                 if (e.statusCode == 503 &&
                     e.body.contains("warm storage archive", ignoreCase = true)
@@ -317,7 +317,7 @@ class MainActivity : AppCompatActivity() {
                     showResult("API error ${e.statusCode}: ${e.body}")
                 }
 
-            } catch (e: FramechainError.NetworkError) {
+            } catch (e: AnchorKitError.NetworkError) {
                 showResult("Network error: ${e.message}")
             } catch (e: Exception) {
                 showResult("Unexpected error: ${e.message}")
@@ -342,14 +342,14 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val message = withContext(Dispatchers.IO) { framechain.subscribeToNotifications(email) }
+                val message = withContext(Dispatchers.IO) { anchorkit.subscribeToNotifications(email) }
                 showResult(message)
-            } catch (e: FramechainError.ApiError) {
+            } catch (e: AnchorKitError.ApiError) {
                 val detail = runCatching {
                     org.json.JSONObject(e.body).getString("detail")
                 }.getOrNull()
                 showResult(detail ?: "Could not subscribe (${e.statusCode}): ${e.body}")
-            } catch (e: FramechainError.NetworkError) {
+            } catch (e: AnchorKitError.NetworkError) {
                 showResult("Network error: ${e.message}")
             } catch (e: Exception) {
                 showResult("Unexpected error: ${e.message}")
@@ -370,11 +370,11 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) { framechain.unsubscribeFromNotifications(email) }
+                withContext(Dispatchers.IO) { anchorkit.unsubscribeFromNotifications(email) }
                 showResult("Unsubscribed. $email will no longer receive batch notifications.")
-            } catch (e: FramechainError.ApiError) {
+            } catch (e: AnchorKitError.ApiError) {
                 showResult("Could not unsubscribe (${e.statusCode}): ${e.body}")
-            } catch (e: FramechainError.NetworkError) {
+            } catch (e: AnchorKitError.NetworkError) {
                 showResult("Network error: ${e.message}")
             } catch (e: Exception) {
                 showResult("Unexpected error: ${e.message}")

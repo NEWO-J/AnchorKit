@@ -1,4 +1,4 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import android.Manifest
 import android.content.Context
