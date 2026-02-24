@@ -1,4 +1,4 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import android.content.Context
 import android.os.Build
@@ -28,8 +28,8 @@ import java.util.UUID
  */
 object EnclaveAttestation {
 
-    private const val KEY_ALIAS = "framechain_attestation_key"
-    private const val PREFS_NAME = "framechain_prefs"
+    private const val KEY_ALIAS = "anchorkit_attestation_key"
+    private const val PREFS_NAME = "anchorkit_prefs"
     private const val PREF_CHALLENGE = "attestation_challenge"
     private const val ALGORITHM = "SHA256withECDSA"
 
@@ -65,7 +65,7 @@ object EnclaveAttestation {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val privateKey = keyStore.getKey(KEY_ALIAS, null) as PrivateKey
         val certChain = keyStore.getCertificateChain(KEY_ALIAS)
-            ?: throw FramechainError.AttestationError("Certificate chain unavailable — key may not be hardware-backed")
+            ?: throw AnchorKitError.AttestationError("Certificate chain unavailable — key may not be hardware-backed")
 
         val signatureBytes = Signature.getInstance(ALGORITHM).run {
             initSign(privateKey)

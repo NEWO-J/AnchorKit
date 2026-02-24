@@ -1,21 +1,21 @@
-package io.framechain.sdk.models
+package io.anchorkit.sdk.models
 
 import kotlinx.serialization.Serializable
 
 /**
- * A self-contained proof bundle returned by [io.framechain.sdk.FramechainClient.downloadProof].
+ * A self-contained proof bundle returned by [io.anchorkit.sdk.AnchorKitClient.downloadProof].
  *
- * Verification without any Framechain server:
+ * Verification without any AnchorKit server:
  *
- * 1. **Local math** — call [io.framechain.sdk.SolanaVerifier.verifyMerkleProof] with
+ * 1. **Local math** — call [io.anchorkit.sdk.SolanaVerifier.verifyMerkleProof] with
  *    [hash], [merkle_proof], and [merkle_root]. This is pure SHA-256; no network needed.
  *
- * 2. **On-chain root lookup** — call [io.framechain.sdk.SolanaVerifier.verify], which
+ * 2. **On-chain root lookup** — call [io.anchorkit.sdk.SolanaVerifier.verify], which
  *    fetches [solana_registry_pda] from a public Solana RPC and confirms the on-chain
  *    root matches [merkle_root].
  *
  * Store this bundle in your own database. Once obtained, it is permanently verifiable
- * even if Framechain's servers are unavailable.
+ * even if AnchorKit's servers are unavailable.
  */
 @Serializable
 data class PortableProof(

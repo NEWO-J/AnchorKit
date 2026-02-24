@@ -1,7 +1,7 @@
-package io.framechain.sdk
+package io.anchorkit.sdk
 
 import android.util.Base64
-import io.framechain.sdk.models.*
+import io.anchorkit.sdk.models.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -26,9 +26,9 @@ data class AttestationChallenge(
     val expires_at: Long
 )
 
-class FramechainClient(
+class AnchorKitClient(
     private val apiKey: String,
-    private val baseUrl: String = "https://api.framechain.net"
+    private val baseUrl: String = "https://api.anchorkit.net"
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -44,7 +44,7 @@ class FramechainClient(
     //
     // How to regenerate pins when rotating certificates:
     //   1. Run against the current server:
-    //        openssl s_client -connect api.framechain.net:443 -showcerts </dev/null 2>/dev/null \
+    //        openssl s_client -connect api.anchorkit.net:443 -showcerts </dev/null 2>/dev/null \
     //          | openssl x509 -pubkey -noout \
     //          | openssl pkey -pubin -outform der \
     //          | openssl dgst -sha256 -binary \
@@ -53,11 +53,11 @@ class FramechainClient(
     //   3. Release the SDK update with both old + new pins.
     //   4. After the old cert is retired, remove the old pin in a follow-up release.
     //
-    private val PRODUCTION_HOST = "api.framechain.net"
+    private val PRODUCTION_HOST = "api.anchorkit.net"
     private val PRODUCTION_PINS: Set<String> = setOf(
-        // Leaf cert SPKI SHA-256 — fetched 2026-02-22 from api.framechain.net
+        // Leaf cert SPKI SHA-256 — fetched 2026-02-22 from api.anchorkit.net
         "Y83h/Xv5lbyCuY26cBxCb1oAIdYXtn9J0QxHsEFcLYQ=",
-        // Intermediate CA SPKI SHA-256 — fetched 2026-02-22 from api.framechain.net
+        // Intermediate CA SPKI SHA-256 — fetched 2026-02-22 from api.anchorkit.net
         "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
     )
 
@@ -94,7 +94,7 @@ class FramechainClient(
                 if (PRODUCTION_PINS.isEmpty()) {
                     throw CertificateException(
                         "TLS certificate pins not configured for $PRODUCTION_HOST. " +
-                        "Populate PRODUCTION_PINS in FramechainClient before shipping."
+                        "Populate PRODUCTION_PINS in AnchorKitClient before shipping."
                     )
                 }
 
@@ -110,7 +110,7 @@ class FramechainClient(
                     throw CertificateException(
                         "TLS certificate pin mismatch for $PRODUCTION_HOST. " +
                         "Possible MITM attack, or the server certificate was rotated without " +
-                        "updating the SDK pins. Contact support@framechain.io."
+                        "updating the SDK pins. Contact support@anchorkit.io."
                     )
                 }
             }
@@ -137,17 +137,17 @@ class FramechainClient(
      * previously captured attestation.
      *
      * @return [AttestationChallenge] containing the nonce and its expiry time
-     * @throws FramechainError.NetworkError on I/O failures
-     * @throws FramechainError.ApiError on non-2xx responses
+     * @throws AnchorKitError.NetworkError on I/O failures
+     * @throws AnchorKitError.ApiError on non-2xx responses
      */
     suspend fun fetchChallenge(): AttestationChallenge = withContext(Dispatchers.IO) {
         val connection = openConnection("$baseUrl/api/attestation-challenge", "GET")
         try {
             readResponse<AttestationChallenge>(connection)
-        } catch (e: FramechainError) {
+        } catch (e: AnchorKitError) {
             throw e
         } catch (e: IOException) {
-            throw FramechainError.NetworkError("Failed to fetch attestation challenge: ${e.message}", e)
+            throw AnchorKitError.NetworkError("Failed to fetch attestation challenge: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
@@ -162,8 +162,8 @@ class FramechainClient(
      * @param deviceAttestation Base64-encoded certificate chain proving hardware origin
      * @param metadata Optional caller-supplied key/value pairs stored alongside the hash
      * @return [VerificationReceipt] confirming the hash was stored
-     * @throws FramechainError.NetworkError on I/O failures
-     * @throws FramechainError.ApiError on non-2xx responses
+     * @throws AnchorKitError.NetworkError on I/O failures
+     * @throws AnchorKitError.ApiError on non-2xx responses
      */
     suspend fun submitHash(
         hash: String,
@@ -185,10 +185,10 @@ class FramechainClient(
         try {
             connection.outputStream.use { it.write(json.encodeToString(request).toByteArray()) }
             readResponse<VerificationReceipt>(connection)
-        } catch (e: FramechainError) {
+        } catch (e: AnchorKitError) {
             throw e
         } catch (e: IOException) {
-            throw FramechainError.NetworkError("Network request failed: ${e.message}", e)
+            throw AnchorKitError.NetworkError("Network request failed: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
@@ -199,17 +199,17 @@ class FramechainClient(
      *
      * @param hash SHA-256 hex hash to look up
      * @return [VerificationResult] with blockchain confirmation status
-     * @throws FramechainError.NetworkError on I/O failures
-     * @throws FramechainError.ApiError on non-2xx responses
+     * @throws AnchorKitError.NetworkError on I/O failures
+     * @throws AnchorKitError.ApiError on non-2xx responses
      */
     suspend fun verifyHash(hash: String): VerificationResult = withContext(Dispatchers.IO) {
         val connection = openConnection("$baseUrl/api/verify-hash/${hash.lowercase()}", "GET")
         try {
             readResponse<VerificationResult>(connection)
-        } catch (e: FramechainError) {
+        } catch (e: AnchorKitError) {
             throw e
         } catch (e: IOException) {
-            throw FramechainError.NetworkError("Network request failed: ${e.message}", e)
+            throw AnchorKitError.NetworkError("Network request failed: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
@@ -219,8 +219,8 @@ class FramechainClient(
      * Subscribe an email address to receive nightly batch notification emails.
      *
      * @param email Email address to subscribe
-     * @throws FramechainError.NetworkError on I/O failures
-     * @throws FramechainError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
+     * @throws AnchorKitError.NetworkError on I/O failures
+     * @throws AnchorKitError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
      */
     suspend fun subscribeToNotifications(email: String): String = withContext(Dispatchers.IO) {
         @Serializable
@@ -234,10 +234,10 @@ class FramechainClient(
             val body = json.encodeToString(SubscribeRequest(email = email, api_key = apiKey))
             connection.outputStream.use { it.write(body.toByteArray()) }
             readResponse<SubscribeResponse>(connection).message
-        } catch (e: FramechainError) {
+        } catch (e: AnchorKitError) {
             throw e
         } catch (e: IOException) {
-            throw FramechainError.NetworkError("Failed to subscribe: ${e.message}", e)
+            throw AnchorKitError.NetworkError("Failed to subscribe: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
@@ -247,8 +247,8 @@ class FramechainClient(
      * Unsubscribe an email address from nightly batch notifications.
      *
      * @param email Email address to unsubscribe
-     * @throws FramechainError.NetworkError on I/O failures
-     * @throws FramechainError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
+     * @throws AnchorKitError.NetworkError on I/O failures
+     * @throws AnchorKitError.ApiError on non-2xx responses (401 = bad API key, 422 = invalid email)
      */
     suspend fun unsubscribeFromNotifications(email: String): Unit = withContext(Dispatchers.IO) {
         @Serializable
@@ -263,12 +263,12 @@ class FramechainClient(
                 val errorBody = runCatching {
                     connection.errorStream?.bufferedReader()?.readText() ?: ""
                 }.getOrDefault("")
-                throw FramechainError.ApiError(code, errorBody)
+                throw AnchorKitError.ApiError(code, errorBody)
             }
-        } catch (e: FramechainError) {
+        } catch (e: AnchorKitError) {
             throw e
         } catch (e: IOException) {
-            throw FramechainError.NetworkError("Failed to unsubscribe: ${e.message}", e)
+            throw AnchorKitError.NetworkError("Failed to unsubscribe: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
@@ -279,17 +279,17 @@ class FramechainClient(
      *
      * @param hash SHA-256 hex hash to fetch a proof for
      * @return [PortableProof] containing the Merkle proof and on-chain references
-     * @throws FramechainError.NetworkError on I/O failures
-     * @throws FramechainError.ApiError on non-2xx responses (404 = not yet anchored)
+     * @throws AnchorKitError.NetworkError on I/O failures
+     * @throws AnchorKitError.ApiError on non-2xx responses (404 = not yet anchored)
      */
     suspend fun downloadProof(hash: String): PortableProof = withContext(Dispatchers.IO) {
         val connection = openConnection("$baseUrl/api/proof/${hash.lowercase()}", "GET")
         try {
             readResponse<PortableProof>(connection)
-        } catch (e: FramechainError) {
+        } catch (e: AnchorKitError) {
             throw e
         } catch (e: IOException) {
-            throw FramechainError.NetworkError("Network request failed: ${e.message}", e)
+            throw AnchorKitError.NetworkError("Network request failed: ${e.message}", e)
         } finally {
             connection.disconnect()
         }
@@ -327,6 +327,6 @@ class FramechainClient(
         val errorBody = runCatching {
             connection.errorStream?.bufferedReader()?.readText() ?: ""
         }.getOrDefault("")
-        throw FramechainError.ApiError(code, errorBody)
+        throw AnchorKitError.ApiError(code, errorBody)
     }
 }

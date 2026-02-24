@@ -11,23 +11,23 @@ if (localPropertiesFile.exists()) {
 }
 
 android {
-    namespace 'io.framechain.demo'
+    namespace 'io.anchorkit.demo'
     compileSdk 34
 
     defaultConfig {
-        applicationId "io.framechain.demo"
+        applicationId "io.anchorkit.demo"
         minSdk 26
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
         // Override in local.properties or CI env:
-        //   FRAMECHAIN_API_KEY=<key>
-        //   FRAMECHAIN_BASE_URL=https://api.framechain.net
-        def apiKey = localProperties.getProperty("FRAMECHAIN_API_KEY") ?: project.findProperty("FRAMECHAIN_API_KEY") ?: ""
-        def baseUrl = localProperties.getProperty("FRAMECHAIN_BASE_URL") ?: project.findProperty("FRAMECHAIN_BASE_URL") ?: "https://api.framechain.net"
-        buildConfigField "String", "FRAMECHAIN_API_KEY", "\"${apiKey}\""
-        buildConfigField "String", "FRAMECHAIN_BASE_URL", "\"${baseUrl}\""
+        //   ANCHORKIT_API_KEY=<key>
+        //   ANCHORKIT_BASE_URL=https://api.anchorkit.net
+        def apiKey = localProperties.getProperty("ANCHORKIT_API_KEY") ?: project.findProperty("ANCHORKIT_API_KEY") ?: ""
+        def baseUrl = localProperties.getProperty("ANCHORKIT_BASE_URL") ?: project.findProperty("ANCHORKIT_BASE_URL") ?: "https://api.anchorkit.net"
+        buildConfigField "String", "ANCHORKIT_API_KEY", "\"${apiKey}\""
+        buildConfigField "String", "ANCHORKIT_BASE_URL", "\"${baseUrl}\""
     }
 
     buildTypes {
@@ -53,7 +53,7 @@ android {
 }
 
 dependencies {
-    implementation project(':framechain-android-sdk')
+    implementation project(':anchorkit-android-sdk')
 
     // CameraX — all three artifacts used directly in CameraActivity
     implementation 'androidx.camera:camera-core:1.4.0'
