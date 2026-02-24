@@ -18,6 +18,7 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
 - Each night, submissions are aggregated daily into a Merkle tree, and the root hash is anchored to the Solana blockchain.
 - Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
 - Verification requires only the proof bundle and a single Solana RPC call.
+- Drop-in integration - integrates within your app's existing camera pipeline with minimal code changes.
 
 
 ## Anchor Demo 
