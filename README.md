@@ -74,7 +74,6 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
 ### Online Verification
 
 ```
-                 🔎 ANCHORKIT · ONLINE VERIFICATION
 
      ANDROID DEVICE                 ANCHORKIT API                 SOLANA
      ───────────────                ─────────────                 ───────
