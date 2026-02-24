@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="320"/>
+  <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
 </p>
 
 <p align="center">
