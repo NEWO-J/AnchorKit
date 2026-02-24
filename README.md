@@ -10,8 +10,17 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android"/>
 </p>
 
-**AnchorKit** lets you prove that a photo was taken by a specific physical device, at a specific time, *thus not AI generated.*
+**AnchorKit** is the frontline defense against AI-generated images and deepfakes.
+It lets you prove, with **certainty** that a real photo was taken by a specific physical device, at a specific time.
 
-The cryptographic proof is generated inside the device’s **secure hardware enclave** before the media ever reaches application code, eliminating the possibility of software-layer tampering.
-Submissions are aggregated daily into a Merkle tree, and the root hash is anchored to the Solana blockchain. *This creates a permanent, tamper-evident public record.*
-Proofs are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party. Verification requires only the proof bundle and a single Solana RPC call.
+
+- All media is hardware attested using **secure hardware enclave** (TEE).
+- Each night, submissions are aggregated daily into a Merkle tree, and the root hash is anchored to the Solana blockchain.
+- Proofs are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
+- Verification requires only the proof bundle and a single Solana RPC call.
+
+
+## Anchor Demo 
+
+
+## Installation
