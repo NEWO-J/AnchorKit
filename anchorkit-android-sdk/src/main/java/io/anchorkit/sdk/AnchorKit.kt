@@ -51,12 +51,17 @@ class AnchorKit(
         // be replayed — the server consumes it on first use.
         val challenge = client.fetchChallenge()
 
-        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, context)
-
         val metadata = mapOf(
             "timestamp" to photo.timestamp.toString(),
             "dimensions" to "${photo.width}x${photo.height}"
         )
+
+        // Sign: hash + nonce + metadata_hash.
+        // Including a SHA-256 of the sorted metadata key=value pairs in the
+        // signed payload prevents an in-transit attacker from swapping the
+        // metadata (timestamp, dimensions) without invalidating the attestation.
+        // The server must verify the signature over the same three-part string.
+        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, metadata, context)
 
         val receipt = client.submitHash(
             hash = photo.hash,

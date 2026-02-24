@@ -66,10 +66,15 @@ object SolanaVerifier {
     )
 
     /**
-     * Full two-step verification:
+     * Full three-step verification:
      *
      * 1. Local Merkle proof math (no network).
-     * 2. Direct Solana on-chain root lookup (uses [PortableProof.solana_registry_pda]).
+     * 2. PDA integrity check — re-derive the expected registry account address
+     *    from [PortableProof.solana_program] + [PortableProof.solana_chunk_index]
+     *    and confirm it matches [PortableProof.solana_registry_pda].  This
+     *    prevents a tampered proof bundle from redirecting the on-chain lookup to
+     *    an attacker-controlled Solana account.
+     * 3. Direct Solana on-chain root lookup.
      *
      * @param proof   A bundle previously obtained from [AnchorKitClient.downloadProof].
      * @param network Override the network; defaults to [PortableProof.chain].
@@ -87,19 +92,49 @@ object SolanaVerifier {
             )
         }
 
-        // Step 2 — On-chain root lookup
-        val rpcUrl = SOLANA_RPCS[network]
-            ?: return@withContext LocalVerificationResult(
-                valid = false,
-                reason = "Unknown network: $network",
-            )
-
+        // Step 2 — PDA integrity: re-derive the expected account address from the
+        //           program ID and chunk index, then compare to the proof's claim.
+        //
+        //           Seed: ["merkle_registry", chunk_index as little-endian u16]
+        //           This is the same derivation used by the AnchorKit Solana program.
         if (proof.solana_registry_pda.isNullOrBlank()) {
             return@withContext LocalVerificationResult(
                 valid = false,
                 reason = "Proof bundle does not include solana_registry_pda — cannot perform on-chain lookup",
             )
         }
+
+        if (proof.solana_chunk_index == null) {
+            return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "Proof bundle does not include solana_chunk_index — cannot verify PDA integrity",
+            )
+        }
+
+        val expectedPda = derivePda(proof.solana_program, proof.solana_chunk_index)
+        if (expectedPda == null) {
+            return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "Failed to derive expected PDA from program ${proof.solana_program} " +
+                    "and chunk index ${proof.solana_chunk_index}",
+            )
+        }
+
+        if (expectedPda != proof.solana_registry_pda) {
+            return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "PDA mismatch — proof claims ${proof.solana_registry_pda} but the " +
+                    "expected address derived from program + chunk index is $expectedPda. " +
+                    "The proof bundle may have been tampered with.",
+            )
+        }
+
+        // Step 3 — On-chain root lookup
+        val rpcUrl = SOLANA_RPCS[network]
+            ?: return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "Unknown network: $network",
+            )
 
         val chainRoot = fetchRootForDate(
             pda = proof.solana_registry_pda,
@@ -110,7 +145,7 @@ object SolanaVerifier {
             reason = "Merkle root for ${proof.day} not found in on-chain registry account ${proof.solana_registry_pda}",
         )
 
-        // Step 3 — Compare
+        // Step 4 — Compare
         val proofRoot = proof.merkle_root.removePrefix("0x").lowercase()
         val onChainRoot = chainRoot.removePrefix("0x").lowercase()
 
@@ -125,11 +160,101 @@ object SolanaVerifier {
     }
 
     /**
+     * Derive the on-chain PDA for a MerkleRootRegistry chunk.
+     *
+     * Seed: ``["merkle_registry", chunkIndex.toLeBytes()]``
+     * Program: [programId]
+     *
+     * This mirrors the derivation in the Anchor program:
+     * ```rust
+     * seeds = [b"merkle_registry", chunk_index.to_le_bytes().as_ref()], bump
+     * ```
+     *
+     * The derivation uses the standard Solana find_program_address algorithm:
+     * try bump 255 down to 0; for each bump compute
+     * SHA256("ProgramDerivedAddress" || seeds... || bump_byte || program_id)
+     * and return the first result that is NOT a valid Ed25519 point.
+     *
+     * @return Base-58 PDA string, or null if derivation fails.
+     */
+    fun derivePda(programId: String, chunkIndex: Int): String? {
+        return try {
+            val programIdBytes = base58Decode(programId)
+            val chunkIndexBytes = byteArrayOf(
+                (chunkIndex and 0xFF).toByte(),
+                ((chunkIndex shr 8) and 0xFF).toByte()
+            )
+            val seeds = listOf("merkle_registry".toByteArray(Charsets.UTF_8), chunkIndexBytes)
+            findProgramAddress(seeds, programIdBytes)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Solana find_program_address: iterate bump from 255 down to 0, computing
+     * SHA256("ProgramDerivedAddress" || seed0 || seed1 || ... || bump || programId)
+     * for each bump, and return the first result that is not a valid curve point.
+     */
+    private fun findProgramAddress(seeds: List<ByteArray>, programId: ByteArray): String? {
+        val marker = "ProgramDerivedAddress".toByteArray(Charsets.UTF_8)
+        val digest = MessageDigest.getInstance("SHA-256")
+        for (bump in 255 downTo 0) {
+            digest.reset()
+            for (seed in seeds) digest.update(seed)
+            digest.update(byteArrayOf(bump.toByte()))
+            digest.update(programId)
+            digest.update(marker)
+            val candidate = digest.digest()
+            if (!isOnEd25519Curve(candidate)) {
+                return base58Encode(candidate)
+            }
+        }
+        return null  // No valid PDA found (should not happen in practice)
+    }
+
+    /**
+     * Check whether a 32-byte value is a valid compressed Ed25519 y-coordinate
+     * (i.e. lies on the curve).  PDAs must NOT be on the curve so that no
+     * private key corresponds to them.
+     *
+     * Uses the standard Ed25519 field equation: x² = (y² - 1) / (d·y² + 1) mod p
+     * and checks whether x² has a square root mod p.  If it does, the point is
+     * on the curve and cannot be a PDA.
+     */
+    private fun isOnEd25519Curve(point: ByteArray): Boolean {
+        if (point.size != 32) return false
+        // Ed25519 field prime p = 2^255 - 19
+        val p = java.math.BigInteger.TWO.pow(255).subtract(java.math.BigInteger.valueOf(19))
+        val d = java.math.BigInteger(
+            "-4513249062541557337682894930092624173785641285191125241628941591882900924598840740",
+            10
+        )
+        // Decode little-endian y coordinate (clear sign bit)
+        val yBytes = point.copyOf()
+        yBytes[31] = (yBytes[31].toInt() and 0x7F).toByte()
+        val y = java.math.BigInteger(1, yBytes.reversedArray())
+        val y2 = y.multiply(y).mod(p)
+        val num = y2.subtract(java.math.BigInteger.ONE).mod(p)
+        val den = d.multiply(y2).add(java.math.BigInteger.ONE).mod(p)
+        val denInv = den.modPow(p.subtract(java.math.BigInteger.TWO), p)
+        val x2 = num.multiply(denInv).mod(p)
+        // x² has a square root mod p iff x²^((p-1)/2) ≡ 1 (mod p)
+        val exp = p.subtract(java.math.BigInteger.ONE).divide(java.math.BigInteger.TWO)
+        return x2.modPow(exp, p) == java.math.BigInteger.ONE
+    }
+
+    /**
      * Verify the Merkle proof path locally — no network required.
      *
-     * Starting from [leafHash], each step of [proof] concatenates the current
-     * hash with its sibling (order determined by "left"/"right") and SHA-256s
-     * the result. The final value must equal [root].
+     * Applies the same domain-separation scheme used by the server-side Rust
+     * Merkle tree (RFC 6962 style):
+     *
+     *   leaf node:     SHA256(0x00 || leaf_utf8_bytes)
+     *   internal node: SHA256(0x01 || left_utf8_bytes || right_utf8_bytes)
+     *
+     * Domain separation prevents a second-preimage attack where a crafted
+     * internal-node hash collides with a leaf hash, enabling proof forgery.
      *
      * @param leafHash SHA-256 hex hash of the image (lowercase, no 0x prefix).
      * @param proof    List of `[sibling_hash, "left"|"right"]` steps.
@@ -140,13 +265,14 @@ object SolanaVerifier {
         proof: List<List<String>>,
         root: String,
     ): Boolean {
-        var current = leafHash.lowercase()
+        // Apply leaf domain tag first (matches hash_leaf in lib.rs).
+        var current = hashLeaf(leafHash.lowercase())
         for (step in proof) {
             if (step.size != 2) return false
             val sibling = step[0]
             val position = step[1]
-            val combined = if (position == "left") "$sibling$current" else "$current$sibling"
-            current = sha256Hex(combined)
+            // Apply internal node domain tag (matches hash_node in lib.rs).
+            current = if (position == "left") hashNode(sibling, current) else hashNode(current, sibling)
         }
         return current == root.lowercase().removePrefix("0x")
     }
@@ -251,10 +377,61 @@ object SolanaVerifier {
     // Crypto helpers
     // -------------------------------------------------------------------------
 
-    private fun sha256Hex(input: String): String {
+    /** SHA256(0x00 || leaf) — domain-separated leaf hash (RFC 6962 style). */
+    private fun hashLeaf(leaf: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(input.toByteArray(Charsets.UTF_8)).toHex()
+        digest.update(0x00.toByte())
+        digest.update(leaf.toByteArray(Charsets.UTF_8))
+        return digest.digest().toHex()
+    }
+
+    /** SHA256(0x01 || left || right) — domain-separated internal node hash. */
+    private fun hashNode(left: String, right: String): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        digest.update(0x01.toByte())
+        digest.update(left.toByteArray(Charsets.UTF_8))
+        digest.update(right.toByteArray(Charsets.UTF_8))
+        return digest.digest().toHex()
     }
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+
+    // -------------------------------------------------------------------------
+    // Base-58 codec (Bitcoin/Solana alphabet)
+    // -------------------------------------------------------------------------
+
+    private val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+    private fun base58Encode(input: ByteArray): String {
+        var num = java.math.BigInteger(1, input)
+        val zero = java.math.BigInteger.ZERO
+        val base = java.math.BigInteger.valueOf(58)
+        val sb = StringBuilder()
+        while (num > zero) {
+            val (quotient, remainder) = num.divideAndRemainder(base)
+            sb.append(BASE58_ALPHABET[remainder.toInt()])
+            num = quotient
+        }
+        // Leading zero bytes → '1' characters
+        for (b in input) {
+            if (b == 0.toByte()) sb.append('1') else break
+        }
+        return sb.reverse().toString()
+    }
+
+    private fun base58Decode(input: String): ByteArray {
+        var num = java.math.BigInteger.ZERO
+        val base = java.math.BigInteger.valueOf(58)
+        for (ch in input) {
+            val idx = BASE58_ALPHABET.indexOf(ch)
+            require(idx >= 0) { "Invalid base-58 character: $ch" }
+            num = num.multiply(base).add(java.math.BigInteger.valueOf(idx.toLong()))
+        }
+        var bytes = num.toByteArray()
+        // Remove sign byte if present
+        if (bytes.size > 1 && bytes[0] == 0.toByte()) bytes = bytes.copyOfRange(1, bytes.size)
+        // Prepend zero bytes for leading '1' characters
+        val leadingZeros = input.takeWhile { it == '1' }.length
+        return ByteArray(leadingZeros) + bytes
+    }
 }
