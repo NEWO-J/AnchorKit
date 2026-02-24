@@ -21,6 +21,8 @@
 - Each night, submissions are aggregated into a daily Merkle tree, and the root hash is anchored to the Solana blockchain.
 - Proof bundles are **fully** self-contained. Media remains independently verifiable without relying on AnchorKit, AWS, or any third party.
 - Verification requires only the proof bundle and a single Solana RPC call.
+> [!NOTE]
+> None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
 ## 🏴‍☠️ Capturing Truth at The Source
 
