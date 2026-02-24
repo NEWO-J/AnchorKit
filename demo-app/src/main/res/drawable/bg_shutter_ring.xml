@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Outer white ring for the native-style shutter button -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="oval">
+    <stroke android:width="3dp" android:color="#FFFFFF" />
+    <solid android:color="@android:color/transparent" />
+</shape>
