@@ -137,7 +137,7 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
    └──────────────────────────┘
               │
               ▼
-        ON CHAIN = VALID
+        MATCH = VALID
         ELSE = INVALID
 ```
 
