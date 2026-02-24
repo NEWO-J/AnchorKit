@@ -11,7 +11,7 @@
 </p>
 
 **AnchorKit** is the frontline defense against AI-generated images and deepfakes.
-It lets you prove, with **certainty** that a real photo was taken by a specific physical device, at a specific time.
+It lets you prove, with certainty that a real photo was taken by a specific physical device, at a specific time.
 
 
 - All media is hardware attested using **secure hardware enclave** (TEE).
