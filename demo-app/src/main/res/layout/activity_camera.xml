@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
@@ -11,69 +10,78 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Top bar: close button only -->
-    <com.google.android.material.button.MaterialButton
+    <!-- Top bar: close button -->
+    <ImageButton
         android:id="@+id/btnClose"
-        style="@style/Widget.MaterialComponents.Button.TextButton"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
         android:layout_gravity="top|start"
         android:layout_margin="8dp"
-        android:text="✕"
-        android:textColor="@android:color/white"
-        android:textSize="20sp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
         android:contentDescription="Close"
-        app:rippleColor="#40FFFFFF" />
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_close" />
 
-    <!-- Bottom bar: [empty] [shutter] [flip] balanced around center -->
+    <!-- Bottom control bar: [empty] [shutter] [flip] in three equal columns -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="140dp"
+        android:layout_height="160dp"
         android:layout_gravity="bottom"
-        android:background="#99000000"
+        android:background="#B3000000"
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- Left spacer (mirrors the flip button width for visual centering) -->
-        <Space
+        <!-- Left column: empty placeholder (balances the flip button on the right) -->
+        <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="0dp"
+            android:layout_height="match_parent"
             android:layout_weight="1" />
 
-        <com.google.android.material.button.MaterialButton
+        <!-- Center: native-style ring-within-ring shutter button -->
+        <FrameLayout
             android:id="@+id/btnShutter"
-            android:layout_width="72dp"
-            android:layout_height="72dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:text=""
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:clickable="true"
             android:contentDescription="Capture photo"
-            android:backgroundTint="@android:color/white"
-            app:cornerRadius="36dp"
-            app:rippleColor="#40000000"
-            android:elevation="4dp" />
+            android:focusable="true"
+            android:foreground="?android:attr/selectableItemBackgroundBorderless">
 
-        <!-- Flip button sits to the right of the shutter -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnFlip"
-            android:layout_width="56dp"
-            android:layout_height="56dp"
-            android:layout_marginStart="24dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:text="⇄"
-            android:textColor="@android:color/white"
-            android:textSize="24sp"
-            android:contentDescription="Flip camera"
-            android:backgroundTint="#66FFFFFF"
-            app:cornerRadius="28dp"
-            app:rippleColor="#40FFFFFF"
-            android:elevation="4dp" />
+            <!-- Outer white ring -->
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/bg_shutter_ring" />
 
-        <Space
+            <!-- Inner white filled circle (gap between ring and fill reads as native camera) -->
+            <View
+                android:layout_width="68dp"
+                android:layout_height="68dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_shutter_inner" />
+
+        </FrameLayout>
+
+        <!-- Right column: flip camera button centered in its column -->
+        <FrameLayout
             android:layout_width="0dp"
-            android:layout_height="0dp"
-            android:layout_weight="1" />
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center">
+
+            <ImageButton
+                android:id="@+id/btnFlip"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:layout_gravity="center"
+                android:background="@drawable/bg_flip_button"
+                android:contentDescription="Flip camera"
+                android:padding="14dp"
+                android:scaleType="fitCenter"
+                android:src="@drawable/ic_camera_flip" />
+
+        </FrameLayout>
 
     </LinearLayout>
 
