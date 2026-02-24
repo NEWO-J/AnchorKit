@@ -9,3 +9,5 @@
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green"/>
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android"/>
 </p>
+
+AnchorKit is a hardware-backed provenance SDK that establishes cryptographic proof-of-origin for photos, anchors Merkle roots on Solana, and produces self-contained proof bundles that remain independently verifiable without relying on AnchorKit, AWS, or any other vendor.
