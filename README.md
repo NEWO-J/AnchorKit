@@ -30,6 +30,7 @@
 > [!NOTE]
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
+=======
 ## 📊 How It Compares
 | | AnchorKit | C2PA Standard | AI Detection |
 | --- | --- | --- | --- |

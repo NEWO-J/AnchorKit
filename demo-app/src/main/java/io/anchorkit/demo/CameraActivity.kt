@@ -1,6 +1,7 @@
 package io.anchorkit.demo
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
@@ -12,6 +13,8 @@ import android.provider.MediaStore
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.View
+import android.view.animation.DecelerateInterpolator
+import android.widget.FrameLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
@@ -36,7 +39,8 @@ class CameraActivity : AppCompatActivity() {
     private var camera: Camera? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
 
-    // Video recording state
+    // Camera mode & recording state
+    private var isVideoMode = false
     private var isRecording = false
     private var videoRecordingSession: VideoRecordingSession? = null
 
@@ -89,7 +93,7 @@ class CameraActivity : AppCompatActivity() {
         binding.btnClose.setOnClickListener { onCloseClicked() }
         binding.btnFlip.setOnClickListener { flipCamera() }
         binding.btnShutter.setOnClickListener { onShutterClicked() }
-        binding.btnRecord.setOnClickListener { onRecordClicked() }
+        binding.btnModeSwitch.setOnClickListener { onModeSwitchClicked() }
 
         binding.previewView.setOnTouchListener { _, event ->
             scaleGestureDetector.onTouchEvent(event)
@@ -117,6 +121,8 @@ class CameraActivity : AppCompatActivity() {
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+                // Start fully zoomed out — prevents the 2× default on multi-lens devices.
+                camera?.cameraControl?.setLinearZoom(0f)
             } catch (e: Exception) {
                 returnError("Could not open camera: ${e.message}")
             }
@@ -138,12 +144,72 @@ class CameraActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
-    // Photo capture
+    // Mode switching (photo ↔ video)
+    // -------------------------------------------------------------------------
+
+    private fun onModeSwitchClicked() {
+        if (isRecording) return  // Guarded by UI; belt-and-suspenders
+        isVideoMode = !isVideoMode
+        updateModeUi(animate = true)
+    }
+
+    /**
+     * Sync all mode-dependent UI to [isVideoMode]:
+     *  - photo icon alpha on/off in the pill
+     *  - video icon alpha on/off in the pill
+     *  - shutter inner circle animates between 68dp (photo) and 52dp (video)
+     */
+    private fun updateModeUi(animate: Boolean) {
+        val targetDp = if (isVideoMode) VIDEO_INNER_DP else PHOTO_INNER_DP
+
+        // Pill icon highlights: active = opaque, inactive = dim
+        binding.ivModePhoto.alpha = if (isVideoMode) 0.4f else 1.0f
+        binding.ivModeVideo.alpha = if (isVideoMode) 1.0f else 0.4f
+
+        val density = resources.displayMetrics.density
+        val targetPx = (targetDp * density).toInt()
+
+        if (animate) {
+            // Read current pixel size from layout params (set either from XML or a prior animation)
+            val currentPx = binding.ivShutterInner.layoutParams.width
+                .takeIf { it > 0 } ?: (PHOTO_INNER_DP * density).toInt()
+            ValueAnimator.ofInt(currentPx, targetPx).apply {
+                duration = 250
+                interpolator = DecelerateInterpolator()
+                addUpdateListener { anim ->
+                    val size = anim.animatedValue as Int
+                    val lp = binding.ivShutterInner.layoutParams as FrameLayout.LayoutParams
+                    lp.width = size
+                    lp.height = size
+                    binding.ivShutterInner.layoutParams = lp
+                }
+                start()
+            }
+        } else {
+            val lp = binding.ivShutterInner.layoutParams as FrameLayout.LayoutParams
+            lp.width = targetPx
+            lp.height = targetPx
+            binding.ivShutterInner.layoutParams = lp
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Shutter button — routes to photo capture or video record/stop
     // -------------------------------------------------------------------------
 
     private fun onShutterClicked() {
-        if (isRecording) return  // Shutter disabled while recording
+        if (isVideoMode) {
+            if (!isRecording) startRecording() else stopRecordingAndSubmit()
+        } else {
+            onTakePhoto()
+        }
+    }
 
+    // -------------------------------------------------------------------------
+    // Photo capture
+    // -------------------------------------------------------------------------
+
+    private fun onTakePhoto() {
         // On Android 9 and below, storage permission is required to save to gallery.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
@@ -154,7 +220,6 @@ class CameraActivity : AppCompatActivity() {
         }
 
         setControlsEnabled(false)
-        binding.capturingOverlay.visibility = View.VISIBLE
 
         lifecycleScope.launch {
             try {
@@ -205,17 +270,12 @@ class CameraActivity : AppCompatActivity() {
     // Video recording
     // -------------------------------------------------------------------------
 
-    private fun onRecordClicked() {
-        if (!isRecording) {
-            startRecording()
-        } else {
-            stopRecordingAndSubmit()
-        }
-    }
-
     private fun startRecording() {
-        setControlsEnabled(false)
-        binding.btnRecord.isEnabled = true  // Keep record button active so user can stop
+        // Disable all controls briefly while the recording session is initialising.
+        // Mode switch stays disabled for the entire recording duration.
+        binding.btnShutter.isEnabled = false
+        binding.btnModeSwitch.isEnabled = false
+        binding.btnFlip.isEnabled = false
 
         lifecycleScope.launch {
             try {
@@ -227,16 +287,22 @@ class CameraActivity : AppCompatActivity() {
                 videoRecordingSession = session
                 isRecording = true
 
-                // Update record button: circle → square
-                binding.ivRecordInner.visibility = View.GONE
-                binding.ivStopInner.visibility = View.VISIBLE
-                binding.tvRecordingIndicator.visibility = View.VISIBLE
+                // Re-enable shutter (for stop) and flip; keep mode switch locked
+                binding.btnShutter.isEnabled = true
+                binding.btnFlip.isEnabled = true
+
+                // Inner circle turns red — the only recording indicator
+                binding.ivShutterInner.setBackgroundResource(R.drawable.bg_record_inner)
 
             } catch (e: AnchorKitError.DeviceIntegrityError) {
-                setControlsEnabled(true)
+                binding.btnShutter.isEnabled = true
+                binding.btnModeSwitch.isEnabled = true
+                binding.btnFlip.isEnabled = true
                 returnError("Device integrity check failed: ${e.message}")
             } catch (e: Exception) {
-                setControlsEnabled(true)
+                binding.btnShutter.isEnabled = true
+                binding.btnModeSwitch.isEnabled = true
+                binding.btnFlip.isEnabled = true
                 android.widget.Toast.makeText(
                     this@CameraActivity,
                     "Could not start recording: ${e.message}",
@@ -251,9 +317,8 @@ class CameraActivity : AppCompatActivity() {
         isRecording = false
         videoRecordingSession = null
 
-        // Show submitting overlay; hide REC indicator
-        binding.tvRecordingIndicator.visibility = View.GONE
-        binding.capturingOverlay.visibility = View.VISIBLE
+        // Reset inner circle to white, then show the submitting overlay
+        binding.ivShutterInner.setBackgroundResource(R.drawable.bg_shutter_inner)
         setControlsEnabled(false)
 
         lifecycleScope.launch {
@@ -379,20 +444,17 @@ class CameraActivity : AppCompatActivity() {
     // Helpers
     // -------------------------------------------------------------------------
 
-    /** Enable or disable all camera controls. During recording, record button stays enabled. */
+    /** Disable/enable all camera controls and show/hide the submitting overlay. */
     private fun setControlsEnabled(enabled: Boolean) {
         binding.btnShutter.isEnabled = enabled
         binding.btnFlip.isEnabled = enabled
-        binding.btnRecord.isEnabled = enabled
+        binding.btnModeSwitch.isEnabled = enabled
         binding.capturingOverlay.visibility = if (enabled) View.GONE else View.VISIBLE
     }
 
     private fun returnError(message: String) {
-        // Reset record button state if we hit an error mid-recording
-        binding.ivRecordInner.visibility = View.VISIBLE
-        binding.ivStopInner.visibility = View.GONE
-        binding.tvRecordingIndicator.visibility = View.GONE
-        binding.capturingOverlay.visibility = View.GONE
+        // Reset shutter inner to white regardless of mode
+        binding.ivShutterInner.setBackgroundResource(R.drawable.bg_shutter_inner)
         setControlsEnabled(true)
 
         val intent = Intent().apply { putExtra(EXTRA_ERROR, message) }
@@ -401,6 +463,9 @@ class CameraActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val PHOTO_INNER_DP = 68
+        private const val VIDEO_INNER_DP = 52
+
         const val EXTRA_MEDIA_TYPE = "media_type"
         const val MEDIA_TYPE_PHOTO = "photo"
         const val MEDIA_TYPE_VIDEO = "video"
