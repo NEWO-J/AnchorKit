@@ -63,20 +63,14 @@ internal class VideoRecorder(private val context: Context) {
             val tempFile = File(cacheDir, "anchorkit_video_${System.currentTimeMillis()}.mp4")
 
             try {
-                cameraProvider.unbindAll()
-
-                if (previewSurfaceProvider != null) {
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewSurfaceProvider)
-                    }
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner, cameraSelector, preview, videoCaptureUseCase
-                    )
-                } else {
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner, cameraSelector, videoCaptureUseCase
-                    )
-                }
+                // Add VideoCapture alongside the already-running Preview use case.
+                // Do NOT call unbindAll() — that tears down the Preview session, causing
+                // a visible black flash and resetting camera zoom to the device default.
+                val camera = cameraProvider.bindToLifecycle(
+                    lifecycleOwner, cameraSelector, videoCaptureUseCase
+                )
+                // Re-apply minimum zoom so the viewfinder stays fully zoomed out.
+                camera.cameraControl.setLinearZoom(0f)
 
                 val finalizedDeferred = CompletableDeferred<VideoResult>()
                 var startTimestamp = System.currentTimeMillis()

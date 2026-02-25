@@ -281,8 +281,9 @@ class CameraActivity : AppCompatActivity() {
             try {
                 val session = anchorkit.startVideoRecording(
                     lifecycleOwner = this@CameraActivity,
-                    lensFacing = lensFacing,
-                    previewSurfaceProvider = binding.previewView.surfaceProvider
+                    lensFacing = lensFacing
+                    // previewSurfaceProvider omitted: the existing Preview use case
+                    // stays bound; the SDK only adds VideoCapture alongside it.
                 )
                 videoRecordingSession = session
                 isRecording = true
