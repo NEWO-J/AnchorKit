@@ -38,7 +38,7 @@
 | **What it proves** | "This  is a real photograph taken on real hardware at this time" | "This content was created or endorsed by the holder of this certificate at this time" | "This image may or may not have been AI-generated" |
 | **Verification** | Stored on public solana node | Certificate in metadata | Post-hoc property analysis |
 | **Hardware Attestation** | StrongBox / TEE | Optional, not required | None |
-| **Trust Model** | Trustless once anchored | Relies on certificate authority | Results vary based on model provider —  no source of trust |
+| **Trust Model** | Trustless once anchored | Relies on certificate authority | Trust the estimation of the model provider —  not definitive |
 | **Proof is self-contained** | Yes — proof bundle + any public Solana RPC node | No — depends on CA infrastructure and lookup services remaining operational | N/A |
 | **Historical record is immutable** | Yes — blockchain entries cannot be altered retroactively | No — certificates expire and CAs can be revoked | N/A |
 | **Decentralized** | Yes — anchored on public blockchain | No — centralized certificate infrastructure | No — model vendor dependency |
