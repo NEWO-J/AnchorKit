@@ -41,8 +41,8 @@
 
             <LinearLayout
                 android:id="@+id/btnModeSwitch"
-                android:layout_width="78dp"
-                android:layout_height="36dp"
+                android:layout_width="96dp"
+                android:layout_height="44dp"
                 android:layout_gravity="center"
                 android:background="@drawable/bg_mode_switch_pill"
                 android:clickable="true"
@@ -50,25 +50,43 @@
                 android:focusable="true"
                 android:gravity="center"
                 android:orientation="horizontal"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="8dp">
+                android:paddingHorizontal="6dp">
 
-                <!-- Camera (photo) icon — full-white when photo mode is active -->
-                <ImageView
-                    android:id="@+id/ivModePhoto"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:alpha="1.0"
-                    android:src="@drawable/ic_photo_camera" />
+                <!-- Photo icon container — circle highlight visible when photo mode is active -->
+                <FrameLayout
+                    android:id="@+id/containerModePhoto"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:background="@drawable/bg_mode_icon_selected">
 
-                <!-- Video icon — full-white when video mode is active -->
-                <ImageView
-                    android:id="@+id/ivModeVideo"
-                    android:layout_width="20dp"
-                    android:layout_height="20dp"
-                    android:layout_marginStart="8dp"
-                    android:alpha="0.4"
-                    android:src="@drawable/ic_video_camera" />
+                    <!-- Camera (photo) icon — full-white when photo mode is active -->
+                    <ImageView
+                        android:id="@+id/ivModePhoto"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center"
+                        android:alpha="1.0"
+                        android:src="@drawable/ic_photo_camera" />
+
+                </FrameLayout>
+
+                <!-- Video icon container — circle highlight visible when video mode is active -->
+                <FrameLayout
+                    android:id="@+id/containerModeVideo"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginStart="4dp">
+
+                    <!-- Video icon — full-white when video mode is active -->
+                    <ImageView
+                        android:id="@+id/ivModeVideo"
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:layout_gravity="center"
+                        android:alpha="0.4"
+                        android:src="@drawable/ic_video_camera" />
+
+                </FrameLayout>
 
             </LinearLayout>
 
