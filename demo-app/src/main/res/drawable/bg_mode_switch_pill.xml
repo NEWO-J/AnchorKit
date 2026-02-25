@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pill-shaped background for the photo/video mode toggle button.
+     Ripple is masked to the rounded-rect shape so the touch feedback
+     stays contained within the pill boundary. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="#40FFFFFF">
+
+    <!-- Mask: constrains the ripple to the pill outline -->
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFFFF" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+
+    <!-- Background: semi-transparent dark pill -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#80000000" />
+            <corners android:radius="18dp" />
+        </shape>
+    </item>
+
+</ripple>

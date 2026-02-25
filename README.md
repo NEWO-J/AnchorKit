@@ -23,7 +23,73 @@ It lets you prove, cryptographically, that a real photo was taken by a specific 
 
 ## 🏴‍☠️ Capturing Truth at The Source
 
+C2PA embeds credentials **inside the file** — a metadata layer appended to the JPEG/MP4.
+Every major social platform (Instagram, Twitter/X, WhatsApp) strips or recompresses that layer on upload. The moment the file is shared, the credential is gone.
+
+AnchorKit takes the opposite approach: **the proof never lives in the file at all.**
+It lives on the Solana blockchain. No matter how many times a photo is shared, reposted, screenshotted, or re-compressed, the original can always be verified against an immutable public ledger that no one — not AnchorKit, not AWS, not any certificate authority — controls.
+
+The capture-time proof is also stronger at the source. AnchorKit requires that the signing key was generated inside a **hardware secure element (StrongBox or TEE)** with a verified, locked bootloader. C2PA has no such requirement — a software certificate on any machine is sufficient to produce a "valid" C2PA credential. Independent security researcher Dr. Neal Krawetz [demonstrated in December 2023](https://hackerfactor.com/blog/index.php?/archives/1018-C2PAs-Worst-Case-Scenario.html) that C2PA metadata can be trivially forged using Adobe's own open-source `c2patool`, with **cryptographic signatures that pass every C2PA validator**, because the standard places no cryptographic verification on what hardware or software did the signing.
+
+AI-based image detection adds a third approach, but it is fundamentally probabilistic: a classifier that guesses whether an image looks AI-generated, looks altered, or looks authentic. It has no chain of custody, cannot be audited, produces false positives that harm legitimate photographers, and is easily defeated by adversarial fine-tuning. It establishes no legal record.
+
+### How the Three Approaches Compare
+
+| | AnchorKit | C2PA | AI Image Detection |
+|---|---|---|---|
+| **Where proof lives** | Solana blockchain (external, permanent) | Inside the file (JUMBF metadata) | Nowhere — result is ephemeral |
+| **Survives social media sharing?** | ✅ Proof is independent of the file | ❌ Stripped on recompression by every major platform | ✅ (Re-runs on any copy, but result changes with compression) |
+| **Hardware attestation required?** | ✅ StrongBox / TEE mandatory; verified boot state enforced | ❌ Any software certificate is valid | ❌ Not applicable |
+| **Private key ever leaves device?** | ❌ Never — hardware-enforced | ✅ Must be distributed to device; user has API access | ❌ Not applicable |
+| **Can be forged with cheap tools?** | ❌ Requires bypassing TEE + Solana blockchain | ✅ Yes — `c2patool` produces valid signatures on any laptop ([demonstrated publicly](https://hackerfactor.com/blog/index.php?/archives/1018-C2PAs-Worst-Case-Scenario.html)) | ✅ Adversarial fine-tuning defeats classifiers |
+| **Trust model** | Zero-trust / hardware-rooted | Honor system ("we trust the signer") | Probabilistic guess |
+| **Certificate authority dependency?** | ❌ None | ✅ Yes — CA compromise enables retroactive forgery of any historical image | ❌ Not applicable |
+| **Historical records safe if CA breached?** | ✅ Blockchain entries are immutable | ❌ Revoked/forged CA certs can be backdated; C2PA spec explicitly permits revoked certificates | ❌ Not applicable |
+| **Cert cost to produce "valid" credential** | N/A (hardware-bound, not cert-bound) | $0 (self-signed, flagged "unknown") to $289/year (trusted CA) | $0 |
+| **Verify without any third party?** | ✅ Any public Solana RPC node | ❌ Requires CA infrastructure + Content Credentials service | ❌ Requires running the model |
+| **Tamper detection** | ✅ Cryptographic — hash mismatch is definitive | ⚠️ "Tamper-evident" in name only — forged signatures pass all validators; valid signature proves nothing about signer honesty | ❌ Probabilistic — altered images may still pass |
+| **Certifies device identity?** | ✅ Yes — TEE + verified boot state, cryptographically bound | ❌ No — certifies signer identity only (who, not what hardware) | ❌ No |
+| **False positives harm authentic users?** | ❌ No — proof is binary pass/fail | ⚠️ Invalid sig doesn't mean content was altered (e.g. Windows Photo Gallery auto-updates metadata, breaking the signature innocently) | ✅ Yes — authentic photos regularly flagged as AI-generated |
+| **Legal strength** | ✅ Blockchain record is auditable by any party with a Solana node | ⚠️ Risky — valid forged C2PA signatures are accepted as authentic by courts ([forensics expert analysis](https://hackerfactor.com/blog/index.php?/archives/1018-C2PAs-Worst-Case-Scenario.html)); invalid sig doesn't prove content was altered | ❌ Expert testimony on classifier output is weak evidence |
+| **Works after cert expiry?** | ✅ Blockchain record is permanent | ❌ Certificates expire; backdating lets forgers sign with expired certs undetected | ❌ Not applicable |
+| **Controlled by a single company?** | ❌ Open Solana blockchain | ⚠️ Adobe controls the trust list and Content Credentials service; changes made unilaterally without community announcement | Depends on vendor |
+| **Works for AI-generated image labeling?** | ✅ Absence of AnchorKit proof means no hardware-attested origin | ⚠️ Can label as "AI-generated" but label is as forgeable as any other C2PA claim | ⚠️ Probabilistic only; adversarially defeatable |
+
+### The Forgery Problem in Plain Terms
+
+Every C2PA validator — including Adobe's own `c2patool` and the Content Credentials website — checks whether the cryptographic signature is valid. What it **cannot** check is whether the person who signed the content is who they claim to be, whether the signing device was a real camera, or whether the content matches the claim. Dr. Krawetz fabricated a convincing forgery attributing illegal content to a named individual using a copied Leica certificate. Every C2PA tool reported the signatures as valid. The only defense against the forgery was to demonstrate, to a non-technical court, that "valid signatures" do not mean "authentic content" — arguing against the explicit marketing claims of Adobe, Microsoft, Intel, Sony, and other C2PA backers.
+
+With AnchorKit, the forgery path is closed at the hardware level. A valid AnchorKit submission requires the signing key to have been generated inside a certified secure element on a device that passed Android Verified Boot at the time of key generation. That condition is cryptographically attested by Google's certificate authority chain and verified server-side. There is no `c2patool` equivalent — no off-the-shelf CLI that produces a passing attestation from a laptop.
+
 ## Anchor Demo
+
+The demo app (`demo-app/`) shows a minimal integration. Three calls cover the full capture-to-proof lifecycle:
+
+```kotlin
+// 1. Initialize (once, e.g. in Application.onCreate)
+val anchorKit = AnchorKit(context, apiKey = BuildConfig.ANCHORKIT_API_KEY)
+
+// 2. Capture — hardware-attested photo; blocks until submission receipt arrives
+val result: CaptureResult = anchorKit.captureAndSubmit()
+// result.receipt.attestation_verified == true  →  TEE/StrongBox confirmed server-side
+// result.receipt.hash                          →  SHA-256 of the raw JPEG bytes
+
+// 3. Verify — after nightly batch anchors to Solana (next midnight UTC)
+val verification: VerificationResult = anchorKit.verify(result.receipt.hash)
+// verification.verified == true               →  hash is on-chain; merkle_proof included
+```
+
+To go fully trustless after anchoring, fetch the `PortableProof` bundle once and store it alongside the photo:
+
+```kotlin
+// Save this JSON sidecar with your photo — it verifies against Solana forever,
+// with no AnchorKit servers involved.
+val proof: PortableProof = anchorKit.getProof(result.receipt.hash)
+
+// Later, on any device, using any public Solana RPC:
+val localResult: LocalVerificationResult = anchorKit.verifyLocally(proof)
+// localResult.valid == true  →  verified against Solana directly; AnchorKit never contacted
+```
 
 
 ## Architecture

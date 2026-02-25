@@ -23,23 +23,7 @@
         android:scaleType="fitCenter"
         android:src="@drawable/ic_close" />
 
-    <!-- REC indicator — visible only while recording -->
-    <TextView
-        android:id="@+id/tvRecordingIndicator"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|end"
-        android:layout_margin="12dp"
-        android:background="#CC000000"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="4dp"
-        android:text="● REC"
-        android:textColor="#E53935"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:visibility="gone" />
-
-    <!-- Bottom control bar: [record] [shutter] [flip] in three equal columns -->
+    <!-- Bottom control bar: [mode switch] [shutter] [flip] in three equal columns -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="160dp"
@@ -48,51 +32,52 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- Left column: record / stop button -->
+        <!-- Left column: photo / video mode-switch pill -->
         <FrameLayout
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:gravity="center">
 
-            <FrameLayout
-                android:id="@+id/btnRecord"
-                android:layout_width="72dp"
-                android:layout_height="72dp"
+            <LinearLayout
+                android:id="@+id/btnModeSwitch"
+                android:layout_width="78dp"
+                android:layout_height="36dp"
                 android:layout_gravity="center"
+                android:background="@drawable/bg_mode_switch_pill"
                 android:clickable="true"
-                android:contentDescription="Record video"
+                android:contentDescription="Switch camera mode"
                 android:focusable="true"
-                android:foreground="?android:attr/selectableItemBackgroundBorderless">
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="8dp">
 
-                <!-- Outer white ring (same style as shutter) -->
-                <View
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/bg_shutter_ring" />
+                <!-- Camera (photo) icon — full-white when photo mode is active -->
+                <ImageView
+                    android:id="@+id/ivModePhoto"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:alpha="1.0"
+                    android:src="@drawable/ic_photo_camera" />
 
-                <!-- Red circle — shown when not recording -->
-                <View
-                    android:id="@+id/ivRecordInner"
-                    android:layout_width="54dp"
-                    android:layout_height="54dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_record_inner" />
+                <!-- Video icon — full-white when video mode is active -->
+                <ImageView
+                    android:id="@+id/ivModeVideo"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_marginStart="8dp"
+                    android:alpha="0.4"
+                    android:src="@drawable/ic_video_camera" />
 
-                <!-- Red rounded square — shown while recording (tap to stop) -->
-                <View
-                    android:id="@+id/ivStopInner"
-                    android:layout_width="28dp"
-                    android:layout_height="28dp"
-                    android:layout_gravity="center"
-                    android:background="@drawable/bg_stop_inner"
-                    android:visibility="gone" />
-
-            </FrameLayout>
+            </LinearLayout>
 
         </FrameLayout>
 
-        <!-- Center: native-style ring-within-ring shutter button -->
+        <!-- Center: native-style ring-within-ring capture button.
+             In photo mode the inner circle is full-size (68dp, white).
+             Switching to video mode animates it down to 52dp (still white).
+             Tapping to start recording turns it red; tapping to stop resets it. -->
         <FrameLayout
             android:id="@+id/btnShutter"
             android:layout_width="88dp"
@@ -102,14 +87,15 @@
             android:focusable="true"
             android:foreground="?android:attr/selectableItemBackgroundBorderless">
 
-            <!-- Outer white ring -->
+            <!-- Outer white ring — stays 88dp in all modes -->
             <View
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:background="@drawable/bg_shutter_ring" />
 
-            <!-- Inner white filled circle (gap between ring and fill reads as native camera) -->
+            <!-- Inner circle — size animates on mode switch; color changes on record -->
             <View
+                android:id="@+id/ivShutterInner"
                 android:layout_width="68dp"
                 android:layout_height="68dp"
                 android:layout_gravity="center"
