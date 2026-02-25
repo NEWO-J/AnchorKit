@@ -1,4 +1,4 @@
-# ⚓ AnchorKit - Your camera, under oath.
+# ⚓ AnchorKit — Your camera, under oath
 <p align="center">
   <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
 </p>
@@ -13,6 +13,14 @@
 </p>
 
 **AnchorKit** is a photo provenance SDK for Android (*With iOS to come*). It enables applications to distinguish real camera captures from AI-generated or manipulated media using hardware-backed cryptographic proofs.
+<p align="center">
+  <a href="#how-it-works">How It Works</a> •
+  <a href="#anchor-demo">Demo</a> •
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#installation">Installation</a> •
+  <a href="#credits">Credits</a> •
+  <a href="#license">License</a>
+</p>
 
 
 ## How It Works
@@ -24,12 +32,26 @@
 > [!NOTE]
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
-## 🏴‍☠️ Capturing Truth at The Source
+## 📊 How It Compares
+| | AnchorKit | C2PA Standard | AI Detection |
+| --- | --- | --- | --- |
+| **What it proves** | This specific device captured this specific photo at this time | This content was created or endorsed by the holder of this certificate at this time | This image may or may not have been AI-generated |
+| **Verification** | Hardware-signed + Solana | Certificate in metadata | Post-hoc property analysis |
+| **Hardware Attestation** | StrongBox / TEE | Optional, not required | None |
+| **Trust Model** | Trustless once anchored | Relies on certificate authority | Varies based on model provider |
+| **Proof is self-contained** | Yes — proof bundle + any public Solana RPC node | No — depends on CA infrastructure and lookup services remaining operational | N/A |
+| **Historical record is immutable** | Yes — blockchain entries cannot be altered retroactively | No — certificates expire and CAs can be revoked | N/A |
+| **Decentralized** | Yes — anchored on public blockchain | No — centralized certificate infrastructure | No — model vendor dependency |
+| **If Compromised** | Only future pictures can be faked | All pictures can be faked | Detection degrades as generation models improve (arms race) |
 
-## Anchor Demo
 
 
-## Architecture
+
+##  Anchor Demo
+
+
+## 🚀 Quick Start 
+
 
 ### Photo Submission Pipeline
 
