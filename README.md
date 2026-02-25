@@ -52,6 +52,9 @@
 
 ## 🚀 Quick Start 
 
+## Proof Badges
+Optional scannable badge add-on to visually show your photo is AnchorKit verified.
+
 ## Build Trust in Your Brand
 Include an optional verifiable badge displaying your site's AnchorKit statistics.
 
