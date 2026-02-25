@@ -52,7 +52,7 @@
 
 ## 🚀 Quick Start 
 
-## Proof Badges
+## AnchorBadges
 Optional scannable badge add-on to visually show your photo is AnchorKit verified.
 
 ## Build Trust in Your Brand
