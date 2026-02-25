@@ -3,7 +3,6 @@
   <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
 </p>
 
-
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue"/>
   <img alt="API Level" src="https://img.shields.io/badge/API-24%2B-brightgreen"/>
@@ -21,7 +20,6 @@
   <a href="#credits">Credits</a> •
   <a href="#license">License</a>
 </p>
-
 
 ## How It Works
 - AnchorKit integrates with your existing CameraX pipeline via a single API call — no camera rewrites required.
@@ -44,10 +42,10 @@
 | **Decentralized** | Yes — anchored on public blockchain | No — centralized certificate infrastructure | No — model vendor dependency |
 | **If Compromised** | Only future pictures can be faked | All pictures can be faked | Detection degrades as generation models improve (arms race) |
 
-
-
-
 ##  Anchor Demo
+- Insert GIF here - 
+> [!NOTE]
+> The demo app is rate-limited, for full usage of AnchorKit, you can register for a free API key and integrate it into your application.
 
 
 ## 🚀 Quick Start 
@@ -58,7 +56,7 @@ Optional scannable badge add-on to visually show your photo is AnchorKit verifie
 ## 🛡️ SiteBadges - Build Trust in Your Brand
 Display a verifiable badge on your site containing your site's AnchorKit statistics.
 
-### Photo Submission Pipeline
+## 🛠️ Photo Submission Pipeline
 
 ```
      ANDROID DEVICE                ANCHORKIT API                SOLANA
