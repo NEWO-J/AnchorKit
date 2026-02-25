@@ -83,6 +83,15 @@ class MainActivity : AppCompatActivity() {
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
         binding.btnSubscribe.setOnClickListener { onSubscribeClicked() }
         binding.btnUnsubscribe.setOnClickListener { onUnsubscribeClicked() }
+
+        binding.bottomNav.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_home -> { showTab(Tab.HOME); true }
+                R.id.nav_result -> { showTab(Tab.RESULT); true }
+                R.id.nav_settings -> { showTab(Tab.SETTINGS); true }
+                else -> false
+            }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -211,6 +220,7 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun verifyHash(hash: String) {
+        showTab(Tab.RESULT)
         setLoading(true)
         showResult("")
 
@@ -351,6 +361,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         binding.tilEmail.error = null
+        showTab(Tab.RESULT)
         setLoading(true)
 
         lifecycleScope.launch {
@@ -379,6 +390,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         binding.tilEmail.error = null
+        showTab(Tab.RESULT)
         setLoading(true)
 
         lifecycleScope.launch {
@@ -412,5 +424,25 @@ class MainActivity : AppCompatActivity() {
     private fun showResult(text: String) {
         binding.tvResult.text = text
         binding.cardResult.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
+        binding.tvResultEmpty.visibility = if (text.isEmpty()) View.VISIBLE else View.GONE
+        if (text.isNotEmpty()) showTab(Tab.RESULT)
+    }
+
+    // -------------------------------------------------------------------------
+    // Tab navigation
+    // -------------------------------------------------------------------------
+
+    private enum class Tab { HOME, RESULT, SETTINGS }
+
+    private fun showTab(tab: Tab) {
+        binding.tabHome.visibility = if (tab == Tab.HOME) View.VISIBLE else View.GONE
+        binding.tabResult.visibility = if (tab == Tab.RESULT) View.VISIBLE else View.GONE
+        binding.tabSettings.visibility = if (tab == Tab.SETTINGS) View.VISIBLE else View.GONE
+        val itemId = when (tab) {
+            Tab.HOME -> R.id.nav_home
+            Tab.RESULT -> R.id.nav_result
+            Tab.SETTINGS -> R.id.nav_settings
+        }
+        if (binding.bottomNav.selectedItemId != itemId) binding.bottomNav.selectedItemId = itemId
     }
 }
