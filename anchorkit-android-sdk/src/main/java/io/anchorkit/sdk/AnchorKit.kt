@@ -1,6 +1,8 @@
 package io.anchorkit.sdk
 
 import android.content.Context
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
 import androidx.lifecycle.LifecycleOwner
 import io.anchorkit.sdk.models.PortableProof
 import io.anchorkit.sdk.models.VerificationReceipt
@@ -13,12 +15,13 @@ class AnchorKit(
 ) {
     private val client = AnchorKitClient(apiKey, baseUrl)
     private val photoCapture = PhotoCapture(context)
+    private val videoRecorder = VideoRecorder(context)
 
     /**
      * Capture a photo, sign it with the hardware-backed attestation key, and
      * submit the hash + attestation to the API in one atomic step.
      *
-     * This is the **only** public method that produces an attested submission.
+     * This is the **only** public method that produces an attested photo submission.
      * Accepting an externally-supplied file or pre-computed hash is intentionally
      * not supported: the SDK must be the origin of the image bytes to guarantee
      * the chain of custody required for hardware attestation.
@@ -72,6 +75,81 @@ class AnchorKit(
         )
 
         return CaptureResult(photo, receipt)
+    }
+
+    /**
+     * Begin recording video from the device camera.
+     *
+     * Returns a [VideoRecordingSession] immediately — recording is already in
+     * progress. Call [stopVideoAndSubmit] when the user taps stop.
+     *
+     * Device integrity is checked upfront; a [AnchorKitError.DeviceIntegrityError]
+     * is thrown before the camera is touched if the device appears rooted.
+     *
+     * IMPORTANT: the caller must hold [android.Manifest.permission.CAMERA] before
+     * invoking. [android.Manifest.permission.RECORD_AUDIO] is used if granted;
+     * audio is silently omitted otherwise.
+     *
+     * @param lifecycleOwner Activity or Fragment used to bind the CameraX lifecycle.
+     * @param lensFacing Which camera to use (default: back).
+     * @param previewSurfaceProvider Pass [androidx.camera.view.PreviewView.surfaceProvider]
+     *        to keep the viewfinder live during recording.
+     */
+    suspend fun startVideoRecording(
+        lifecycleOwner: LifecycleOwner,
+        lensFacing: Int = CameraSelector.LENS_FACING_BACK,
+        previewSurfaceProvider: Preview.SurfaceProvider? = null
+    ): VideoRecordingSession {
+        DeviceIntegrity.check()?.let { reason ->
+            throw AnchorKitError.DeviceIntegrityError(
+                "Submission refused: $reason. " +
+                "Attested submissions require an unmodified device with a locked bootloader."
+            )
+        }
+
+        return videoRecorder.startRecording(
+            lifecycleOwner = lifecycleOwner,
+            lensFacing = lensFacing,
+            previewSurfaceProvider = previewSurfaceProvider,
+            cacheDir = context.cacheDir
+        )
+    }
+
+    /**
+     * Stop an active video recording, hash the output file, attest, and submit.
+     *
+     * Suspends until the encoder finalizes the file. The temp file is NOT deleted
+     * by the SDK — the caller is responsible for saving it to the gallery and
+     * then deleting [VideoCaptureResult.video.file].
+     *
+     * @throws AnchorKitError.HashError if the video file cannot be hashed
+     * @throws AnchorKitError.AttestationError if hardware attestation fails
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError on non-2xx API responses
+     */
+    suspend fun stopVideoAndSubmit(session: VideoRecordingSession): VideoCaptureResult {
+        session.stop()
+        val video = session.awaitResult()
+
+        val challenge = client.fetchChallenge()
+
+        val metadata = mapOf(
+            "timestamp" to video.timestamp.toString(),
+            "duration_ms" to video.durationMs.toString(),
+            "media_type" to "video"
+        )
+
+        val attestation = EnclaveAttestation.sign(video.hash, challenge.nonce, metadata, context)
+
+        val receipt = client.submitHash(
+            hash = video.hash,
+            nonce = challenge.nonce,
+            enclaveSignature = attestation.enclaveSignature,
+            deviceAttestation = attestation.deviceAttestation,
+            metadata = metadata
+        )
+
+        return VideoCaptureResult(video, receipt)
     }
 
     /**
@@ -146,5 +224,10 @@ class AnchorKit(
 
 data class CaptureResult(
     val photo: PhotoResult,
+    val receipt: VerificationReceipt
+)
+
+data class VideoCaptureResult(
+    val video: VideoResult,
     val receipt: VerificationReceipt
 )
