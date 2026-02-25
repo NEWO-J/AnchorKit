@@ -52,6 +52,8 @@
 
 ## 🚀 Quick Start 
 
+## Build Trust in Your Brand
+Include an optional verifiable badge displaying your site's AnchorKit statistics.
 
 ### Photo Submission Pipeline
 
