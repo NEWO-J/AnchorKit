@@ -162,9 +162,16 @@ class CameraActivity : AppCompatActivity() {
     private fun updateModeUi(animate: Boolean) {
         val targetDp = if (isVideoMode) VIDEO_INNER_DP else PHOTO_INNER_DP
 
-        // Pill icon highlights: active = opaque, inactive = dim
+        // Pill icon highlights: active = opaque + circle background, inactive = dim
         binding.ivModePhoto.alpha = if (isVideoMode) 0.4f else 1.0f
         binding.ivModeVideo.alpha = if (isVideoMode) 1.0f else 0.4f
+        if (isVideoMode) {
+            binding.containerModePhoto.background = null
+            binding.containerModeVideo.setBackgroundResource(R.drawable.bg_mode_icon_selected)
+        } else {
+            binding.containerModePhoto.setBackgroundResource(R.drawable.bg_mode_icon_selected)
+            binding.containerModeVideo.background = null
+        }
 
         val density = resources.displayMetrics.density
         val targetPx = (targetDp * density).toInt()
@@ -281,8 +288,9 @@ class CameraActivity : AppCompatActivity() {
             try {
                 val session = anchorkit.startVideoRecording(
                     lifecycleOwner = this@CameraActivity,
-                    lensFacing = lensFacing,
-                    previewSurfaceProvider = binding.previewView.surfaceProvider
+                    lensFacing = lensFacing
+                    // previewSurfaceProvider omitted: the existing Preview use case
+                    // stays bound; the SDK only adds VideoCapture alongside it.
                 )
                 videoRecordingSession = session
                 isRecording = true
