@@ -35,7 +35,7 @@
 ## 📊 How It Compares
 | | AnchorKit | C2PA Standard | AI Detection |
 | --- | --- | --- | --- |
-| **What it proves** | This specific device captured this specific photo at this time | This content was created or endorsed by the holder of this certificate at this time | This image may or may not have been AI-generated |
+| **What it proves** | "This  is a real photograph taken on real hardware at this time" | "This content was created or endorsed by the holder of this certificate at this time" | "This image may or may not have been AI-generated" |
 | **Verification** | Hardware-signed + Solana | Certificate in metadata | Post-hoc property analysis |
 | **Hardware Attestation** | StrongBox / TEE | Optional, not required | None |
 | **Trust Model** | Trustless once anchored | Relies on certificate authority | Varies based on model provider |
