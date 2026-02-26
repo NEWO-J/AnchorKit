@@ -201,16 +201,32 @@
                     android:layout_marginBottom="8dp" />
 
                 <!-- Empty state — shown when no result is available yet -->
-                <TextView
+                <LinearLayout
                     android:id="@+id/tvResultEmpty"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/result_empty"
-                    android:textSize="14sp"
-                    android:textColor="@color/text_secondary"
+                    android:orientation="vertical"
                     android:gravity="center"
                     android:paddingTop="48dp"
-                    android:visibility="visible" />
+                    android:visibility="visible">
+
+                    <ImageView
+                        android:layout_width="120dp"
+                        android:layout_height="120dp"
+                        android:src="@drawable/pirate_icon"
+                        android:scaleType="fitCenter"
+                        android:contentDescription="No results yet"
+                        android:layout_marginBottom="16dp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="@string/result_empty"
+                        android:textSize="14sp"
+                        android:textColor="@color/text_secondary"
+                        android:gravity="center" />
+
+                </LinearLayout>
 
                 <!-- Result card (hidden until there is output) -->
                 <com.google.android.material.card.MaterialCardView
@@ -358,6 +374,7 @@
         android:background="@color/surface"
         app:itemIconTint="@color/nav_item_color"
         app:itemTextColor="@color/nav_item_color"
+        app:itemRippleColor="@android:color/transparent"
         app:menu="@menu/bottom_nav_menu" />
 
 </LinearLayout>
