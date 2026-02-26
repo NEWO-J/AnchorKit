@@ -23,6 +23,20 @@
         android:scaleType="fitCenter"
         android:src="@drawable/ic_close" />
 
+    <!-- Top bar: flash toggle button -->
+    <ImageButton
+        android:id="@+id/btnFlash"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_gravity="top|end"
+        android:layout_margin="8dp"
+        android:background="?android:attr/selectableItemBackgroundBorderless"
+        android:contentDescription="Toggle flash"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_flash_off"
+        android:visibility="gone" />
+
     <!-- Bottom control bar: [mode switch] [shutter] [flip] in three equal columns -->
     <LinearLayout
         android:layout_width="match_parent"
