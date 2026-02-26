@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var anchorkit: AnchorKit
+    private var isTabSwitching = false
 
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
@@ -85,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnUnsubscribe.setOnClickListener { onUnsubscribeClicked() }
 
         binding.bottomNav.setOnItemSelectedListener { item ->
+            if (isTabSwitching) return@setOnItemSelectedListener true
             when (item.itemId) {
                 R.id.nav_home -> { showTab(Tab.HOME); true }
                 R.id.nav_result -> { showTab(Tab.RESULT); true }
@@ -443,6 +445,10 @@ class MainActivity : AppCompatActivity() {
             Tab.RESULT -> R.id.nav_result
             Tab.SETTINGS -> R.id.nav_settings
         }
-        if (binding.bottomNav.selectedItemId != itemId) binding.bottomNav.selectedItemId = itemId
+        if (binding.bottomNav.selectedItemId != itemId) {
+            isTabSwitching = true
+            binding.bottomNav.selectedItemId = itemId
+            isTabSwitching = false
+        }
     }
 }
