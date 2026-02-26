@@ -45,7 +45,8 @@ class PhotoCapture(private val context: Context) {
      */
     suspend fun capturePhoto(
         lifecycleOwner: LifecycleOwner,
-        lensFacing: Int = CameraSelector.LENS_FACING_BACK
+        lensFacing: Int = CameraSelector.LENS_FACING_BACK,
+        flashMode: Int = ImageCapture.FLASH_MODE_OFF
     ): PhotoResult = suspendCancellableCoroutine { continuation ->
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -55,6 +56,7 @@ class PhotoCapture(private val context: Context) {
 
             val imageCapture = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
+                .setFlashMode(flashMode)
                 .build()
 
             val cameraSelector = CameraSelector.Builder()

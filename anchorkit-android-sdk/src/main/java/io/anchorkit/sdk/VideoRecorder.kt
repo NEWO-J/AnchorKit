@@ -42,6 +42,7 @@ internal class VideoRecorder(private val context: Context) {
         lifecycleOwner: LifecycleOwner,
         lensFacing: Int = CameraSelector.LENS_FACING_BACK,
         previewSurfaceProvider: Preview.SurfaceProvider? = null,
+        cameraSelector: CameraSelector? = null,
         cacheDir: File
     ): VideoRecordingSession = suspendCancellableCoroutine { continuation ->
 
@@ -56,7 +57,10 @@ internal class VideoRecorder(private val context: Context) {
 
             val videoCaptureUseCase = VideoCapture.withOutput(recorder)
 
-            val cameraSelector = CameraSelector.Builder()
+            // Use the caller-provided selector (same physical camera as the preview) so
+            // that binding VideoCapture doesn't switch to a different rear lens and cause
+            // a visible field-of-view shift at recording start.
+            val resolvedCameraSelector = cameraSelector ?: CameraSelector.Builder()
                 .requireLensFacing(lensFacing)
                 .build()
 
@@ -67,7 +71,7 @@ internal class VideoRecorder(private val context: Context) {
                 // Do NOT call unbindAll() — that tears down the Preview session, causing
                 // a visible black flash and resetting camera zoom to the device default.
                 val camera = cameraProvider.bindToLifecycle(
-                    lifecycleOwner, cameraSelector, videoCaptureUseCase
+                    lifecycleOwner, resolvedCameraSelector, videoCaptureUseCase
                 )
                 // Re-apply minimum zoom so the viewfinder stays fully zoomed out.
                 camera.cameraControl.setLinearZoom(0f)

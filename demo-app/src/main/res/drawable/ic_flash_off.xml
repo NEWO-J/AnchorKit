@@ -4,7 +4,12 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
+    <!-- Lightning bolt (same shape as flash_on) -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M3.27,3L2,4.27l5,5V13h3v9l7,-12h-4l3.27,-5.46L20.73,21L22,19.73 3.27,3zM17,10h-4l4,-8H7v2.18l8.08,8.08L17,10z" />
+        android:pathData="M7,2v11h3v9l7,-12h-4l4,-8z" />
+    <!-- Diagonal slash: filled parallelogram from top-left to bottom-right, ~2dp wide -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M2.29,3.71 L3.71,2.29 L21.71,20.29 L20.29,21.71 Z" />
 </vector>
