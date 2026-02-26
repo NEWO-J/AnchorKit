@@ -358,6 +358,7 @@
         android:background="@color/surface"
         app:itemIconTint="@color/nav_item_color"
         app:itemTextColor="@color/nav_item_color"
+        app:itemRippleColor="@android:color/transparent"
         app:menu="@menu/bottom_nav_menu" />
 
 </LinearLayout>
