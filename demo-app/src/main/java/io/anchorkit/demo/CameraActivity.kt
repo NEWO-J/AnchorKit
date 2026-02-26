@@ -43,6 +43,7 @@ class CameraActivity : AppCompatActivity() {
     private var isVideoMode = false
     private var isRecording = false
     private var videoRecordingSession: VideoRecordingSession? = null
+    private var isFlashOn = false
 
     // Only needed for Android 9 (API 28) and below.
     private val writeStoragePermissionLauncher = registerForActivityResult(
@@ -94,6 +95,7 @@ class CameraActivity : AppCompatActivity() {
         binding.btnFlip.setOnClickListener { flipCamera() }
         binding.btnShutter.setOnClickListener { onShutterClicked() }
         binding.btnModeSwitch.setOnClickListener { onModeSwitchClicked() }
+        binding.btnFlash.setOnClickListener { toggleFlash() }
 
         binding.previewView.setOnTouchListener { _, event ->
             scaleGestureDetector.onTouchEvent(event)
@@ -109,24 +111,50 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun startPreview() {
+        // Turn off flash whenever we (re)start the preview so state stays consistent.
+        isFlashOn = false
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val cameraProvider = future.get()
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
-            val cameraSelector = CameraSelector.Builder()
-                .requireLensFacing(lensFacing)
-                .build()
+            val cameraSelector = selectWidestCamera(cameraProvider)
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
                 // Start fully zoomed out — prevents the 2× default on multi-lens devices.
                 camera?.cameraControl?.setLinearZoom(0f)
+                // Show flash button only when the active camera has a flash unit.
+                val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
+                binding.btnFlash.visibility = if (hasFlash) View.VISIBLE else View.GONE
+                binding.btnFlash.setImageResource(R.drawable.ic_flash_off)
             } catch (e: Exception) {
                 returnError("Could not open camera: ${e.message}")
             }
         }, ContextCompat.getMainExecutor(this))
+    }
+
+    /** Returns a [CameraSelector] for the widest available back camera.
+     *  [CameraInfo.intrinsicZoomRatio] is < 1.0 for ultra-wide lenses, so
+     *  the camera with the lowest value is the widest one. */
+    private fun selectWidestCamera(cameraProvider: ProcessCameraProvider): CameraSelector {
+        if (lensFacing != CameraSelector.LENS_FACING_BACK) {
+            return CameraSelector.DEFAULT_FRONT_CAMERA
+        }
+        return cameraProvider.availableCameraInfos
+            .filter { it.lensFacing == CameraSelector.LENS_FACING_BACK }
+            .minByOrNull { it.intrinsicZoomRatio }
+            ?.cameraSelector
+            ?: CameraSelector.DEFAULT_BACK_CAMERA
+    }
+
+    private fun toggleFlash() {
+        isFlashOn = !isFlashOn
+        camera?.cameraControl?.enableTorch(isFlashOn)
+        binding.btnFlash.setImageResource(
+            if (isFlashOn) R.drawable.ic_flash_on else R.drawable.ic_flash_off
+        )
     }
 
     private fun flipCamera() {
@@ -457,6 +485,7 @@ class CameraActivity : AppCompatActivity() {
         binding.btnShutter.isEnabled = enabled
         binding.btnFlip.isEnabled = enabled
         binding.btnModeSwitch.isEnabled = enabled
+        binding.btnFlash.isEnabled = enabled
         binding.capturingOverlay.visibility = if (enabled) View.GONE else View.VISIBLE
     }
 

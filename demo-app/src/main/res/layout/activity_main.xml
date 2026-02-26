@@ -211,7 +211,7 @@
                     android:visibility="visible">
 
                     <ImageView
-                        android:layout_width="600dp"
+                        android:layout_width="540dp"
                         android:layout_height="wrap_content"
                         android:src="@drawable/pirate_icon"
                         android:scaleType="fitCenter"
@@ -376,6 +376,7 @@
         app:itemIconTint="@color/nav_item_color"
         app:itemTextColor="@color/nav_item_color"
         app:itemRippleColor="@android:color/transparent"
+        app:itemActiveIndicatorStyle="@null"
         app:menu="@menu/bottom_nav_menu" />
 
 </LinearLayout>
