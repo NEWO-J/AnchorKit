@@ -212,9 +212,10 @@
 
                     <ImageView
                         android:layout_width="600dp"
-                        android:layout_height="600dp"
+                        android:layout_height="wrap_content"
                         android:src="@drawable/pirate_icon"
                         android:scaleType="fitCenter"
+                        android:adjustViewBounds="true"
                         android:contentDescription="No results yet"
                         android:layout_marginBottom="4dp" />
 
