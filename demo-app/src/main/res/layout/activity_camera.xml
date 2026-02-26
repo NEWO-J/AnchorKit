@@ -116,8 +116,7 @@
             android:layout_height="88dp"
             android:clickable="true"
             android:contentDescription="Capture photo"
-            android:focusable="true"
-            android:foreground="?android:attr/selectableItemBackgroundBorderless">
+            android:focusable="true">
 
             <!-- Outer white ring — stays 88dp in all modes -->
             <View

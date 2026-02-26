@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
@@ -38,6 +39,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var anchorkit: AnchorKit
     private var camera: Camera? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
+    private var activeCameraSelector: CameraSelector? = null
 
     // Camera mode & recording state
     private var isVideoMode = false
@@ -120,6 +122,7 @@ class CameraActivity : AppCompatActivity() {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
             val cameraSelector = selectWidestCamera(cameraProvider)
+            activeCameraSelector = cameraSelector
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
@@ -135,23 +138,23 @@ class CameraActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    /** Returns a [CameraSelector] for the widest available back camera.
+    /** Returns a [CameraSelector] for the widest available camera on the active facing side.
      *  [CameraInfo.intrinsicZoomRatio] is < 1.0 for ultra-wide lenses, so
-     *  the camera with the lowest value is the widest one. */
+     *  the camera with the lowest value is the widest one. Applies to both
+     *  front and back cameras so the selfie camera also defaults to full FOV. */
     private fun selectWidestCamera(cameraProvider: ProcessCameraProvider): CameraSelector {
-        if (lensFacing != CameraSelector.LENS_FACING_BACK) {
-            return CameraSelector.DEFAULT_FRONT_CAMERA
-        }
+        val fallback = if (lensFacing == CameraSelector.LENS_FACING_BACK)
+            CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
         return cameraProvider.availableCameraInfos
-            .filter { it.lensFacing == CameraSelector.LENS_FACING_BACK }
+            .filter { it.lensFacing == lensFacing }
             .minByOrNull { it.intrinsicZoomRatio }
             ?.cameraSelector
-            ?: CameraSelector.DEFAULT_BACK_CAMERA
+            ?: fallback
     }
 
     private fun toggleFlash() {
         isFlashOn = !isFlashOn
-        camera?.cameraControl?.enableTorch(isFlashOn)
+        // Flash fires at the moment of capture/recording — not continuously.
         binding.btnFlash.setImageResource(
             if (isFlashOn) R.drawable.ic_flash_on else R.drawable.ic_flash_off
         )
@@ -258,7 +261,10 @@ class CameraActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val result = anchorkit.captureAndSubmit(this@CameraActivity)
+                val result = anchorkit.captureAndSubmit(
+                    this@CameraActivity,
+                    flashMode = if (isFlashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+                )
 
                 val saved = withContext(Dispatchers.IO) {
                     savePhotoToGallery(result.photo.data, result.photo.timestamp)
@@ -316,12 +322,16 @@ class CameraActivity : AppCompatActivity() {
             try {
                 val session = anchorkit.startVideoRecording(
                     lifecycleOwner = this@CameraActivity,
-                    lensFacing = lensFacing
-                    // previewSurfaceProvider omitted: the existing Preview use case
-                    // stays bound; the SDK only adds VideoCapture alongside it.
+                    lensFacing = lensFacing,
+                    // Pass the exact selector used for the preview so VideoCapture
+                    // binds to the same physical camera, preventing an FOV shift.
+                    cameraSelector = activeCameraSelector
                 )
                 videoRecordingSession = session
                 isRecording = true
+
+                // Enable torch now if the user wants flash during recording.
+                if (isFlashOn) camera?.cameraControl?.enableTorch(true)
 
                 // Re-enable shutter (for stop) and flip; keep mode switch locked
                 binding.btnShutter.isEnabled = true
@@ -353,7 +363,8 @@ class CameraActivity : AppCompatActivity() {
         isRecording = false
         videoRecordingSession = null
 
-        // Reset inner circle to white, then show the submitting overlay
+        // Turn off torch (if it was on for recording) and reset inner circle.
+        camera?.cameraControl?.enableTorch(false)
         binding.ivShutterInner.setBackgroundResource(R.drawable.bg_shutter_inner)
         setControlsEnabled(false)
 

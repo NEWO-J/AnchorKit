@@ -2,6 +2,7 @@ package io.anchorkit.sdk
 
 import android.content.Context
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
 import androidx.lifecycle.LifecycleOwner
 import io.anchorkit.sdk.models.PortableProof
@@ -35,7 +36,10 @@ class AnchorKit(
      * @throws AnchorKitError.NetworkError on connectivity failures
      * @throws AnchorKitError.ApiError on non-2xx API responses
      */
-    suspend fun captureAndSubmit(lifecycleOwner: LifecycleOwner): CaptureResult {
+    suspend fun captureAndSubmit(
+        lifecycleOwner: LifecycleOwner,
+        flashMode: Int = ImageCapture.FLASH_MODE_OFF
+    ): CaptureResult {
         // Reject devices that show signs of being rooted or having an unlocked
         // bootloader before touching the camera or the network.
         // The server enforces the same policy via hardware attestation; this
@@ -47,7 +51,7 @@ class AnchorKit(
             )
         }
 
-        val photo = photoCapture.capturePhoto(lifecycleOwner)
+        val photo = photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
 
         // Fetch a fresh server-issued nonce immediately before signing.
         // The nonce is bound into the signed payload so the attestation cannot
@@ -98,7 +102,8 @@ class AnchorKit(
     suspend fun startVideoRecording(
         lifecycleOwner: LifecycleOwner,
         lensFacing: Int = CameraSelector.LENS_FACING_BACK,
-        previewSurfaceProvider: Preview.SurfaceProvider? = null
+        previewSurfaceProvider: Preview.SurfaceProvider? = null,
+        cameraSelector: CameraSelector? = null
     ): VideoRecordingSession {
         DeviceIntegrity.check()?.let { reason ->
             throw AnchorKitError.DeviceIntegrityError(
@@ -111,6 +116,7 @@ class AnchorKit(
             lifecycleOwner = lifecycleOwner,
             lensFacing = lensFacing,
             previewSurfaceProvider = previewSurfaceProvider,
+            cameraSelector = cameraSelector,
             cacheDir = context.cacheDir
         )
     }
