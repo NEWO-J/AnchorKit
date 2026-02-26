@@ -17,9 +17,6 @@ import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import android.hardware.camera2.CameraCharacteristics
-import androidx.camera.camera2.interop.Camera2CameraInfo
-import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
@@ -138,21 +135,16 @@ class CameraActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    /** Returns a [CameraSelector] for the widest available back camera (lowest focal length).
-     *  Falls back to the default back/front camera if Camera2 info is unavailable. */
-    @androidx.annotation.OptIn(ExperimentalCamera2Interop::class)
+    /** Returns a [CameraSelector] for the widest available back camera.
+     *  [CameraInfo.intrinsicZoomRatio] is < 1.0 for ultra-wide lenses, so
+     *  the camera with the lowest value is the widest one. */
     private fun selectWidestCamera(cameraProvider: ProcessCameraProvider): CameraSelector {
         if (lensFacing != CameraSelector.LENS_FACING_BACK) {
             return CameraSelector.DEFAULT_FRONT_CAMERA
         }
         return cameraProvider.availableCameraInfos
             .filter { it.lensFacing == CameraSelector.LENS_FACING_BACK }
-            .minByOrNull { cameraInfo ->
-                Camera2CameraInfo.from(cameraInfo)
-                    .getCameraCharacteristic(
-                        CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS
-                    )?.minOrNull() ?: Float.MAX_VALUE
-            }
+            .minByOrNull { it.intrinsicZoomRatio }
             ?.cameraSelector
             ?: CameraSelector.DEFAULT_BACK_CAMERA
     }
