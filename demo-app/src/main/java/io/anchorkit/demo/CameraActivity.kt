@@ -21,6 +21,8 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
@@ -38,6 +40,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
     private lateinit var anchorkit: AnchorKit
     private var camera: Camera? = null
+    private var imageCapture: ImageCapture? = null
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var activeCameraSelector: CameraSelector? = null
 
@@ -115,20 +118,26 @@ class CameraActivity : AppCompatActivity() {
     private fun startPreview() {
         // Turn off flash whenever we (re)start the preview so state stays consistent.
         isFlashOn = false
+        imageCapture = null
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
             val cameraProvider = future.get()
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
+            // Bind ImageCapture alongside Preview so it is already initialised when
+            // the shutter fires — eliminates the 1-2 s re-bind delay on capture.
+            val captureUseCase = ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
+            imageCapture = captureUseCase
+
             val cameraSelector = selectWidestCamera(cameraProvider)
             activeCameraSelector = cameraSelector
             try {
                 cameraProvider.unbindAll()
-                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+                camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, captureUseCase)
                 // Set zoom to the absolute hardware minimum once CameraX reports ZoomState.
-                // Using minZoomRatio directly avoids any ambiguity in the linearZoom mapping
-                // and works correctly for both the ultra-wide back camera and the front camera.
                 camera?.cameraInfo?.zoomState?.observe(this@CameraActivity) { state ->
                     if (state != null) {
                         camera?.cameraControl?.setZoomRatio(state.minZoomRatio)
@@ -161,7 +170,9 @@ class CameraActivity : AppCompatActivity() {
 
     private fun toggleFlash() {
         isFlashOn = !isFlashOn
-        // Flash fires at the moment of capture/recording — not continuously.
+        // Update the already-bound ImageCapture use case so the new mode takes
+        // effect immediately — no need to rebind.
+        imageCapture?.flashMode = if (isFlashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
         binding.btnFlash.setImageResource(
             if (isFlashOn) R.drawable.ic_flash_on else R.drawable.ic_flash_off
         )
@@ -264,46 +275,69 @@ class CameraActivity : AppCompatActivity() {
             return
         }
 
+        val capture = imageCapture ?: run {
+            returnError("Camera not ready — please wait a moment and try again.")
+            return
+        }
+
         setControlsEnabled(false)
 
-        lifecycleScope.launch {
-            try {
-                // Capture only — no network calls. Device integrity is checked here.
-                val photo = anchorkit.capturePhoto(
-                    this@CameraActivity,
-                    flashMode = if (isFlashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
-                )
+        // Call takePicture() on the already-bound use case — the shutter fires
+        // immediately with no camera re-initialisation delay.
+        capture.takePicture(
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageCapturedCallback() {
+                override fun onCaptureSuccess(image: ImageProxy) {
+                    val buffer = image.planes[0].buffer
+                    val photoData = ByteArray(buffer.remaining())
+                    buffer.get(photoData)
+                    val width = image.width
+                    val height = image.height
+                    image.close()
 
-                val saved = withContext(Dispatchers.IO) {
-                    savePhotoToGallery(photo.data, photo.timestamp)
-                }
-                if (!saved) {
-                    returnError(
-                        "Storage permission is required to save the photo to your gallery.\n\n" +
-                            "Please grant the storage permission and try again."
-                    )
-                    return@launch
+                    val hash = sha256Hex(photoData)
+                    val timestamp = System.currentTimeMillis()
+
+                    lifecycleScope.launch {
+                        val saved = withContext(Dispatchers.IO) {
+                            savePhotoToGallery(photoData, timestamp)
+                        }
+                        if (!saved) {
+                            returnError(
+                                "Storage permission is required to save the photo to your gallery.\n\n" +
+                                    "Please grant the storage permission and try again."
+                            )
+                            return@launch
+                        }
+
+                        // Return immediately — attestation signing and API submission
+                        // are handled by MainActivity on the Result tab.
+                        val intent = Intent().apply {
+                            putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_PHOTO)
+                            putExtra(EXTRA_HASH, hash)
+                            putExtra(EXTRA_TIMESTAMP_MS, timestamp)
+                            putExtra(EXTRA_PHOTO_WIDTH, width)
+                            putExtra(EXTRA_PHOTO_HEIGHT, height)
+                            putExtra(EXTRA_SUBMISSION_PENDING, true)
+                        }
+                        setResult(Activity.RESULT_OK, intent)
+                        finish()
+                    }
                 }
 
-                // Return immediately — attestation signing and API submission
-                // are handled by MainActivity on the Result tab.
-                val intent = Intent().apply {
-                    putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_PHOTO)
-                    putExtra(EXTRA_HASH, photo.hash)
-                    putExtra(EXTRA_TIMESTAMP_MS, photo.timestamp)
-                    putExtra(EXTRA_PHOTO_WIDTH, photo.width)
-                    putExtra(EXTRA_PHOTO_HEIGHT, photo.height)
-                    putExtra(EXTRA_SUBMISSION_PENDING, true)
+                override fun onError(exception: ImageCaptureException) {
+                    lifecycleScope.launch {
+                        returnError("Capture error: ${exception.message}")
+                    }
                 }
-                setResult(Activity.RESULT_OK, intent)
-                finish()
-
-            } catch (e: AnchorKitError.DeviceIntegrityError) {
-                returnError("Device integrity check failed: ${e.message}")
-            } catch (e: Exception) {
-                returnError("Capture error: ${e.message}")
             }
-        }
+        )
+    }
+
+    /** SHA-256 hex digest of [data], matching the hash computed in the SDK. */
+    private fun sha256Hex(data: ByteArray): String {
+        val md = java.security.MessageDigest.getInstance("SHA-256")
+        return md.digest(data).joinToString("") { "%02x".format(it) }
     }
 
     // -------------------------------------------------------------------------

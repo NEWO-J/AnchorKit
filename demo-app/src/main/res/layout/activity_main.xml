@@ -296,7 +296,7 @@
                             android:paddingBottom="4dp"
                             android:visibility="gone" />
 
-                        <!-- Attestation badge (shown only when hardware attestation is verified) -->
+                        <!-- Attestation section (shown only when hardware attestation is verified) -->
                         <LinearLayout
                             android:id="@+id/llResultAttestation"
                             android:layout_width="match_parent"
@@ -308,46 +308,54 @@
                             android:paddingBottom="16dp"
                             android:visibility="gone">
 
+                            <!-- Single box containing shield header + cert details -->
                             <LinearLayout
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
-                                android:orientation="horizontal"
-                                android:gravity="center_vertical"
-                                android:background="@drawable/attestation_badge_bg"
+                                android:orientation="vertical"
+                                android:background="@drawable/attestation_section_bg"
                                 android:paddingStart="12dp"
                                 android:paddingEnd="12dp"
-                                android:paddingTop="8dp"
-                                android:paddingBottom="8dp">
+                                android:paddingTop="10dp"
+                                android:paddingBottom="10dp">
 
-                                <ImageView
-                                    android:layout_width="16dp"
-                                    android:layout_height="16dp"
-                                    android:src="@drawable/ic_shield_check"
-                                    android:layout_marginEnd="8dp"
-                                    android:contentDescription="Shield icon"
-                                    app:tint="@color/success" />
+                                <LinearLayout
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:orientation="horizontal"
+                                    android:gravity="center_vertical">
+
+                                    <ImageView
+                                        android:layout_width="16dp"
+                                        android:layout_height="16dp"
+                                        android:src="@drawable/ic_shield_check"
+                                        android:layout_marginEnd="8dp"
+                                        android:contentDescription="Shield icon"
+                                        app:tint="@color/success" />
+
+                                    <TextView
+                                        android:layout_width="0dp"
+                                        android:layout_height="wrap_content"
+                                        android:layout_weight="1"
+                                        android:text="@string/attestation_verified"
+                                        android:textSize="13sp"
+                                        android:textStyle="bold"
+                                        android:textColor="@color/success" />
+
+                                </LinearLayout>
 
                                 <TextView
-                                    android:layout_width="0dp"
+                                    android:id="@+id/tvResultAttestDetails"
+                                    android:layout_width="match_parent"
                                     android:layout_height="wrap_content"
-                                    android:layout_weight="1"
-                                    android:text="@string/attestation_verified"
-                                    android:textSize="13sp"
-                                    android:textStyle="bold"
-                                    android:textColor="@color/success" />
+                                    android:textSize="11sp"
+                                    android:fontFamily="monospace"
+                                    android:textColor="@color/text_secondary"
+                                    android:lineSpacingMultiplier="1.4"
+                                    android:paddingTop="8dp"
+                                    android:visibility="gone" />
 
                             </LinearLayout>
-
-                            <TextView
-                                android:id="@+id/tvResultAttestDetails"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:textSize="11sp"
-                                android:fontFamily="monospace"
-                                android:textColor="@color/text_secondary"
-                                android:lineSpacingMultiplier="1.4"
-                                android:paddingTop="10dp"
-                                android:visibility="gone" />
 
                         </LinearLayout>
 
