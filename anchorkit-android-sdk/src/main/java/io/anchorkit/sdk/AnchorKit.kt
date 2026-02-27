@@ -60,7 +60,8 @@ class AnchorKit(
 
         val metadata = mapOf(
             "timestamp" to photo.timestamp.toString(),
-            "dimensions" to "${photo.width}x${photo.height}"
+            "dimensions" to "${photo.width}x${photo.height}",
+            "platform" to "android"
         )
 
         // Sign: hash + nonce + metadata_hash.
@@ -142,7 +143,8 @@ class AnchorKit(
         val metadata = mapOf(
             "timestamp" to video.timestamp.toString(),
             "duration_ms" to video.durationMs.toString(),
-            "media_type" to "video"
+            "media_type" to "video",
+            "platform" to "android"
         )
 
         val attestation = EnclaveAttestation.sign(video.hash, challenge.nonce, metadata, context)

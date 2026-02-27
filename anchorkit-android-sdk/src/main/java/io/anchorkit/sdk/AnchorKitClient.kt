@@ -178,7 +178,7 @@ class AnchorKitClient(
             nonce = nonce,
             enclave_signature = enclaveSignature,
             device_attestation = deviceAttestation,
-            metadata = metadata + mapOf("platform" to "android")
+            metadata = metadata
         )
 
         val connection = openConnection("$baseUrl/api/submit-hash", "POST")
