@@ -120,9 +120,73 @@ class MainActivity : AppCompatActivity() {
     private fun showCaptureResult(data: Intent) {
         val mediaType = data.getStringExtra(CameraActivity.EXTRA_MEDIA_TYPE) ?: CameraActivity.MEDIA_TYPE_PHOTO
         val isVideo = mediaType == CameraActivity.MEDIA_TYPE_VIDEO
-
         val hash = data.getStringExtra(CameraActivity.EXTRA_HASH) ?: return
         val timestampMs = data.getLongExtra(CameraActivity.EXTRA_TIMESTAMP_MS, 0L)
+
+        val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
+        val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
+        val capturedAt = captureTimeFmt.format(Date(timestampMs))
+
+        if (!isVideo && data.getBooleanExtra(CameraActivity.EXTRA_SUBMISSION_PENDING, false)) {
+            // ── Photo fast-path: camera closed immediately, submit from here ──
+            val width = data.getIntExtra(CameraActivity.EXTRA_PHOTO_WIDTH, 0)
+            val height = data.getIntExtra(CameraActivity.EXTRA_PHOTO_HEIGHT, 0)
+
+            showStructuredResult(
+                headline = "Photo Captured",
+                headlineColor = ContextCompat.getColor(this, R.color.primary),
+                iconRes = R.drawable.ic_check_circle,
+                fields = listOf(
+                    Triple("Hash", hash, true),
+                    Triple("Captured", capturedAt, false),
+                ),
+                footnote = "Submitting to AnchorKit…"
+            )
+            setLoading(true)
+
+            lifecycleScope.launch {
+                try {
+                    val receipt = anchorkit.submitPhoto(hash, timestampMs, width, height)
+
+                    val receivedAt = if (receipt.timestamp != null && receipt.timestamp > 0)
+                        serverTimeFmt.format(Date(receipt.timestamp * 1000L))
+                    else capturedAt
+
+                    showStructuredResult(
+                        headline = "Photo Submitted",
+                        headlineColor = ContextCompat.getColor(this@MainActivity, R.color.success),
+                        iconRes = R.drawable.ic_check_circle,
+                        fields = buildList {
+                            add(Triple("Hash", hash, true))
+                            add(Triple("Captured", capturedAt, false))
+                            add(Triple("Received", receivedAt, false))
+                            add(Triple("Batch Day", receipt.day, false))
+                            add(Triple("Hash ID", receipt.hash_id.toString(), false))
+                            add(Triple("Table", receipt.table, false))
+                        },
+                        attestation = if (receipt.attestation_verified == true) Triple(
+                            receipt.cert_fingerprint,
+                            receipt.cert_valid_from?.take(10),
+                            receipt.cert_valid_until?.take(10)
+                        ) else null,
+                        footnote = "Hash will be anchored to the Solana blockchain tonight."
+                    )
+                } catch (e: AnchorKitError.AttestationError) {
+                    showResult("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
+                } catch (e: AnchorKitError.ApiError) {
+                    showResult("Submission failed — API error ${e.statusCode}: ${e.body}")
+                } catch (e: AnchorKitError.NetworkError) {
+                    showResult("Submission failed — Network error: ${e.message}")
+                } catch (e: Exception) {
+                    showResult("Submission failed — Unexpected error: ${e.message}")
+                } finally {
+                    setLoading(false)
+                }
+            }
+            return
+        }
+
+        // ── Video (or legacy photo): receipt data is already in the Intent ──
         val durationMs = data.getLongExtra(CameraActivity.EXTRA_VIDEO_DURATION_MS, 0L)
         val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
         val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
@@ -133,11 +197,6 @@ class MainActivity : AppCompatActivity() {
         val certFingerprint = data.getStringExtra(CameraActivity.EXTRA_CERT_FINGERPRINT)
         val certValidFrom = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_FROM)
         val certValidUntil = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_UNTIL)
-
-        val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
-        val capturedAt = captureTimeFmt.format(Date(timestampMs))
-
-        val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
         val receivedAt = if (receiptTs != null && receiptTs > 0)
             serverTimeFmt.format(Date(receiptTs * 1000L))
         else capturedAt
@@ -145,9 +204,7 @@ class MainActivity : AppCompatActivity() {
         val fields = mutableListOf<Triple<String, String, Boolean>>()
         if (isVideo) {
             val totalSec = durationMs / 1000
-            val mins = totalSec / 60
-            val secs = totalSec % 60
-            fields.add(Triple("Duration", "${if (mins > 0) "${mins}m " else ""}${secs}s", false))
+            fields.add(Triple("Duration", "${if (totalSec / 60 > 0) "${totalSec / 60}m " else ""}${totalSec % 60}s", false))
         }
         fields.add(Triple("Hash", hash, true))
         fields.add(Triple("Captured", capturedAt, false))
@@ -156,16 +213,14 @@ class MainActivity : AppCompatActivity() {
         if (hashId != null) fields.add(Triple("Hash ID", hashId.toString(), false))
         if (table != null) fields.add(Triple("Table", table, false))
 
-        val attestation = if (attestationVerified) Triple(
-            certFingerprint, certValidFrom?.take(10), certValidUntil?.take(10)
-        ) else null
-
         showStructuredResult(
             headline = if (isVideo) "Video Submitted" else "Photo Submitted",
             headlineColor = ContextCompat.getColor(this, R.color.success),
             iconRes = R.drawable.ic_check_circle,
             fields = fields,
-            attestation = attestation,
+            attestation = if (attestationVerified) Triple(
+                certFingerprint, certValidFrom?.take(10), certValidUntil?.take(10)
+            ) else null,
             footnote = "Hash will be anchored to the Solana blockchain tonight."
         )
     }

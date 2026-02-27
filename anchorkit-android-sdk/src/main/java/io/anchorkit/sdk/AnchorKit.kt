@@ -161,6 +161,73 @@ class AnchorKit(
     }
 
     /**
+     * Capture a photo from the device camera. No network calls are made.
+     *
+     * Returns the raw image bytes, SHA-256 hash, and capture metadata.
+     * To complete an attested submission, pass the returned values to [submitPhoto].
+     *
+     * Splitting capture from submission lets the calling Activity finish
+     * immediately after the shutter fires and delegate the network round-trip to
+     * a background context (e.g. the main screen's Result tab).
+     *
+     * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
+     * before invoking this function.
+     *
+     * @throws AnchorKitError.DeviceIntegrityError if the device shows signs of tampering
+     */
+    suspend fun capturePhoto(
+        lifecycleOwner: LifecycleOwner,
+        flashMode: Int = ImageCapture.FLASH_MODE_OFF
+    ): PhotoResult {
+        DeviceIntegrity.check()?.let { reason ->
+            throw AnchorKitError.DeviceIntegrityError(
+                "Submission refused: $reason. " +
+                "Attested submissions require an unmodified device with a locked bootloader."
+            )
+        }
+        return photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+    }
+
+    /**
+     * Sign and submit a previously-captured photo hash to the AnchorKit API.
+     *
+     * Fetches a server nonce, signs the hash + metadata with the device's
+     * hardware-backed attestation key, and submits the result.
+     * Intended to be called after [capturePhoto] — typically from a background
+     * coroutine on the result screen rather than from inside the camera Activity.
+     *
+     * @param hash    SHA-256 hash returned by [capturePhoto]
+     * @param timestamp Capture timestamp in milliseconds returned by [capturePhoto]
+     * @param width   Image width in pixels returned by [capturePhoto]
+     * @param height  Image height in pixels returned by [capturePhoto]
+     *
+     * @throws AnchorKitError.AttestationError if hardware signing fails
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     * @throws AnchorKitError.ApiError on non-2xx API responses
+     */
+    suspend fun submitPhoto(
+        hash: String,
+        timestamp: Long,
+        width: Int,
+        height: Int
+    ): VerificationReceipt {
+        val challenge = client.fetchChallenge()
+        val metadata = mapOf(
+            "timestamp" to timestamp.toString(),
+            "dimensions" to "${width}x${height}",
+            "platform" to "android"
+        )
+        val attestation = EnclaveAttestation.sign(hash, challenge.nonce, metadata, context)
+        return client.submitHash(
+            hash = hash,
+            nonce = challenge.nonce,
+            enclaveSignature = attestation.enclaveSignature,
+            deviceAttestation = attestation.deviceAttestation,
+            metadata = metadata
+        )
+    }
+
+    /**
      * Verify whether a hash has been anchored to the blockchain.
      *
      * @throws AnchorKitError.NetworkError on connectivity failures
