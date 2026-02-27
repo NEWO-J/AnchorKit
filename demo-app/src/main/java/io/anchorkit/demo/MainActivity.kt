@@ -5,9 +5,12 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.graphics.Typeface
 import android.net.Uri
 import android.view.View
 import android.os.Bundle
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -117,9 +120,65 @@ class MainActivity : AppCompatActivity() {
     private fun showCaptureResult(data: Intent) {
         val mediaType = data.getStringExtra(CameraActivity.EXTRA_MEDIA_TYPE) ?: CameraActivity.MEDIA_TYPE_PHOTO
         val isVideo = mediaType == CameraActivity.MEDIA_TYPE_VIDEO
-
         val hash = data.getStringExtra(CameraActivity.EXTRA_HASH) ?: return
         val timestampMs = data.getLongExtra(CameraActivity.EXTRA_TIMESTAMP_MS, 0L)
+
+        val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
+        val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
+        val capturedAt = captureTimeFmt.format(Date(timestampMs))
+
+        if (!isVideo && data.getBooleanExtra(CameraActivity.EXTRA_SUBMISSION_PENDING, false)) {
+            // ── Photo fast-path: camera closed immediately, submit from here ──
+            val width = data.getIntExtra(CameraActivity.EXTRA_PHOTO_WIDTH, 0)
+            val height = data.getIntExtra(CameraActivity.EXTRA_PHOTO_HEIGHT, 0)
+
+            showTab(Tab.RESULT)
+            setLoading(true)
+            showResult("")
+
+            lifecycleScope.launch {
+                try {
+                    val receipt = anchorkit.submitPhoto(hash, timestampMs, width, height)
+
+                    val receivedAt = if (receipt.timestamp != null && receipt.timestamp > 0)
+                        serverTimeFmt.format(Date(receipt.timestamp * 1000L))
+                    else capturedAt
+
+                    showStructuredResult(
+                        headline = "Photo Submitted",
+                        headlineColor = ContextCompat.getColor(this@MainActivity, R.color.success),
+                        iconRes = R.drawable.ic_check_circle,
+                        fields = buildList {
+                            add(Triple("Hash", hash, true))
+                            add(Triple("Captured", capturedAt, false))
+                            add(Triple("Received", receivedAt, false))
+                            add(Triple("Batch Day", receipt.day, false))
+                            add(Triple("Hash ID", receipt.hash_id.toString(), false))
+                            add(Triple("Table", receipt.table, false))
+                        },
+                        attestation = if (receipt.attestation_verified == true) Triple(
+                            receipt.cert_fingerprint,
+                            receipt.cert_valid_from?.take(10),
+                            receipt.cert_valid_until?.take(10)
+                        ) else null,
+                        footnote = "Hash will be anchored to the Solana blockchain tonight."
+                    )
+                } catch (e: AnchorKitError.AttestationError) {
+                    showResult("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
+                } catch (e: AnchorKitError.ApiError) {
+                    showResult("Submission failed — API error ${e.statusCode}: ${e.body}")
+                } catch (e: AnchorKitError.NetworkError) {
+                    showResult("Submission failed — Network error: ${e.message}")
+                } catch (e: Exception) {
+                    showResult("Submission failed — Unexpected error: ${e.message}")
+                } finally {
+                    setLoading(false)
+                }
+            }
+            return
+        }
+
+        // ── Video (or legacy photo): receipt data is already in the Intent ──
         val durationMs = data.getLongExtra(CameraActivity.EXTRA_VIDEO_DURATION_MS, 0L)
         val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
         val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
@@ -130,51 +189,31 @@ class MainActivity : AppCompatActivity() {
         val certFingerprint = data.getStringExtra(CameraActivity.EXTRA_CERT_FINGERPRINT)
         val certValidFrom = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_FROM)
         val certValidUntil = data.getStringExtra(CameraActivity.EXTRA_CERT_VALID_UNTIL)
-
-        val captureTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a", Locale.getDefault())
-        val capturedAt = captureTimeFmt.format(Date(timestampMs))
-
-        val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
         val receivedAt = if (receiptTs != null && receiptTs > 0)
             serverTimeFmt.format(Date(receiptTs * 1000L))
         else capturedAt
 
-        showResult(
-            buildString {
-                if (isVideo) {
-                    appendLine("Video submitted successfully!")
-                    appendLine()
-                    val totalSec = durationMs / 1000
-                    val mins = totalSec / 60
-                    val secs = totalSec % 60
-                    appendLine("Duration:  ${if (mins > 0) "${mins}m " else ""}${secs}s")
-                } else {
-                    appendLine("Photo submitted successfully!")
-                }
-                appendLine()
-                appendLine("Hash:      $hash")
-                appendLine("Captured:  $capturedAt")
-                appendLine("Received:  $receivedAt")
-                if (day != null) appendLine("Batch day: $day")
-                if (hashId != null) appendLine("Hash ID:   $hashId")
-                if (table != null) appendLine("Table:     $table")
+        val fields = mutableListOf<Triple<String, String, Boolean>>()
+        if (isVideo) {
+            val totalSec = durationMs / 1000
+            fields.add(Triple("Duration", "${if (totalSec / 60 > 0) "${totalSec / 60}m " else ""}${totalSec % 60}s", false))
+        }
+        fields.add(Triple("Hash", hash, true))
+        fields.add(Triple("Captured", capturedAt, false))
+        fields.add(Triple("Received", receivedAt, false))
+        if (day != null) fields.add(Triple("Batch Day", day, false))
+        if (hashId != null) fields.add(Triple("Hash ID", hashId.toString(), false))
+        if (table != null) fields.add(Triple("Table", table, false))
 
-                if (attestationVerified) {
-                    appendLine()
-                    appendLine("Hardware Attestation: VERIFIED")
-                    if (!certFingerprint.isNullOrEmpty()) {
-                        appendLine("Key fingerprint: ${certFingerprint.take(16)}...${certFingerprint.takeLast(8)}")
-                    }
-                    val from = certValidFrom?.take(10)
-                    val until = certValidUntil?.take(10)
-                    if (from != null && until != null) {
-                        appendLine("Cert valid: $from → $until")
-                    }
-                }
-
-                appendLine()
-                appendLine("The hash will be anchored to the Solana blockchain tonight.")
-            }
+        showStructuredResult(
+            headline = if (isVideo) "Video Submitted" else "Photo Submitted",
+            headlineColor = ContextCompat.getColor(this, R.color.success),
+            iconRes = R.drawable.ic_check_circle,
+            fields = fields,
+            attestation = if (attestationVerified) Triple(
+                certFingerprint, certValidFrom?.take(10), certValidUntil?.take(10)
+            ) else null,
+            footnote = "Hash will be anchored to the Solana blockchain tonight."
         )
     }
 
@@ -230,88 +269,57 @@ class MainActivity : AppCompatActivity() {
             try {
                 val result = anchorkit.verify(hash)
 
-                fun StringBuilder.appendAttestationBlock() {
-                    if (result.attestation_verified == true) {
-                        appendLine()
-                        appendLine("Hardware Attestation: VERIFIED")
-
-                        val fp = result.cert_fingerprint
-                        if (!fp.isNullOrEmpty()) {
-                            appendLine("Key fingerprint: ${fp.take(16)}...${fp.takeLast(8)}")
-                        }
-
-                        val from = result.cert_valid_from?.take(10)
-                        val until = result.cert_valid_until?.take(10)
-                        if (from != null && until != null) {
-                            appendLine("Cert valid: $from → $until")
-                        }
-                    }
-                }
+                val attestation = if (result.attestation_verified == true) Triple(
+                    result.cert_fingerprint,
+                    result.cert_valid_from?.take(10),
+                    result.cert_valid_until?.take(10)
+                ) else null
 
                 if (result.verified) {
-
                     val tsMillis = result.timestamp?.let { it * 1000L }
                     val tsFormatted = tsMillis?.let {
-                        SimpleDateFormat(
-                            "MMM d, yyyy 'at' h:mm:ss a z",
-                            Locale.getDefault()
-                        ).format(Date(it))
+                        SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()).format(Date(it))
                     } ?: "—"
 
-                    showResult(
-                        buildString {
-                            appendLine("Hash VERIFIED on blockchain!")
-                            appendLine()
-                            appendLine("Hash:      ${result.hash}")
-                            appendLine("Timestamp: $tsFormatted")
-                            appendLine("Batch day: ${result.day}")
-                            appendLine("Hash ID:   ${result.hash_id}")
-
-                            if (result.solana_tx != null) {
-                                appendLine()
-                                appendLine("Solana TX: ${result.solana_tx}")
-                            }
-
-                            appendAttestationBlock()
-                        }
+                    showStructuredResult(
+                        headline = "Verified on Blockchain",
+                        headlineColor = ContextCompat.getColor(this@MainActivity, R.color.success),
+                        iconRes = R.drawable.ic_check_circle,
+                        fields = buildList {
+                            add(Triple("Hash", result.hash, true))
+                            add(Triple("Timestamp", tsFormatted, false))
+                            if (!result.day.isNullOrEmpty()) add(Triple("Batch Day", result.day!!, false))
+                            if (result.hash_id != null) add(Triple("Hash ID", result.hash_id.toString(), false))
+                            if (result.solana_tx != null) add(Triple("Solana TX", result.solana_tx, true))
+                        },
+                        attestation = attestation
                     )
 
                 } else {
-
                     val hasRecord = !result.day.isNullOrEmpty() || result.hash_id != null
 
-                    showResult(
-                        buildString {
-                            if (hasRecord) {
-                                appendLine("Photo recorded — not yet anchored to blockchain.")
-                                appendLine()
-                                appendLine("Hash:      ${result.hash}")
-
-                                if (!result.day.isNullOrEmpty()) {
-                                    appendLine("Batch day: ${result.day}")
-                                }
-
-                                if (result.hash_id != null) {
-                                    appendLine("Hash ID:   ${result.hash_id}")
-                                }
-
-                                val tsMillis = result.timestamp?.let { it * 1000L }
-                                if (tsMillis != null) {
-                                    val tsFormatted = SimpleDateFormat(
-                                        "MMM d, yyyy 'at' h:mm:ss a z",
-                                        Locale.getDefault()
-                                    ).format(Date(tsMillis))
-                                    appendLine("Recorded:  $tsFormatted")
-                                }
-
-                                appendAttestationBlock()
-                                appendLine()
-                                appendLine("Blockchain anchor is pending — check back tomorrow.")
-                            } else {
-                                appendLine(result.message ?: "Hash not found.")
-                            }
+                    if (hasRecord) {
+                        val tsMillis = result.timestamp?.let { it * 1000L }
+                        val tsFormatted = tsMillis?.let {
+                            SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()).format(Date(it))
                         }
-                    )
+
+                        showStructuredResult(
+                            headline = "Recorded — Pending Anchor",
+                            headlineColor = ContextCompat.getColor(this@MainActivity, R.color.warning),
+                            iconRes = R.drawable.ic_hourglass,
+                            fields = buildList {
+                                add(Triple("Hash", result.hash, true))
+                                if (!result.day.isNullOrEmpty()) add(Triple("Batch Day", result.day!!, false))
+                                if (result.hash_id != null) add(Triple("Hash ID", result.hash_id.toString(), false))
+                                if (tsFormatted != null) add(Triple("Recorded", tsFormatted, false))
+                            },
+                            attestation = attestation,
+                            footnote = "Blockchain anchor is pending — check back tomorrow."
+                        )
+                    } else {
+                        showResult(result.message ?: "Hash not found.")
+                    }
                 }
 
             } catch (e: AnchorKitError.ApiError) {
@@ -321,22 +329,15 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     val dayMatch = Regex("""\d{4}-\d{2}-\d{2}""").find(e.body)?.value
 
-                    showResult(
-                        buildString {
-                            appendLine("Photo recorded — not yet anchored to blockchain.")
-                            appendLine()
-                            appendLine("Hash:      $hash")
-
-                            if (dayMatch != null) {
-                                appendLine("Batch day: $dayMatch")
-                            }
-
-                            appendLine()
-                            appendLine("Hardware attestation was captured at submission.")
-                            appendLine("Submission details are temporarily unavailable while")
-                            appendLine("today's archive is being processed — check back tomorrow")
-                            appendLine("for the full record and Solana transaction ID.")
-                        }
+                    showStructuredResult(
+                        headline = "Recorded — Processing",
+                        headlineColor = ContextCompat.getColor(this@MainActivity, R.color.warning),
+                        iconRes = R.drawable.ic_hourglass,
+                        fields = buildList {
+                            add(Triple("Hash", hash, true))
+                            if (dayMatch != null) add(Triple("Batch Day", dayMatch, false))
+                        },
+                        footnote = "Hardware attestation was captured at submission. Submission details are temporarily unavailable while today's archive is being processed — check back tomorrow for the full record and Solana transaction ID."
                     )
                 } else {
                     showResult("API error ${e.statusCode}: ${e.body}")
@@ -423,11 +424,134 @@ class MainActivity : AppCompatActivity() {
         else binding.btnVerify.isEnabled = pickedPhotoHash != null
     }
 
+    /** Simple plain-text result — used for errors and short informational messages. */
     private fun showResult(text: String) {
+        // Hide the structured views
+        binding.llResultHeader.visibility = View.GONE
+        binding.vResultDivider.visibility = View.GONE
+        binding.llResultFields.visibility = View.GONE
+        binding.llResultAttestation.visibility = View.GONE
+        binding.tvResultNote.visibility = View.GONE
+
         binding.tvResult.text = text
+        binding.tvResult.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
+
         binding.cardResult.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
         binding.tvResultEmpty.visibility = if (text.isEmpty()) View.VISIBLE else View.GONE
         if (text.isNotEmpty()) showTab(Tab.RESULT)
+    }
+
+    /**
+     * Structured result card: colored status banner, labeled field rows,
+     * optional attestation badge, and an optional footnote.
+     *
+     * @param fields List of (label, value, isMonospace)
+     * @param attestation Triple of (fingerprint, validFrom, validUntil), or null
+     */
+    private fun showStructuredResult(
+        headline: String,
+        headlineColor: Int,
+        iconRes: Int,
+        fields: List<Triple<String, String, Boolean>>,
+        attestation: Triple<String?, String?, String?>? = null,
+        footnote: String? = null,
+    ) {
+        // Header
+        binding.tvResultHeadline.text = headline
+        binding.tvResultHeadline.setTextColor(headlineColor)
+        binding.ivResultIcon.setImageResource(iconRes)
+        binding.ivResultIcon.imageTintList = ColorStateList.valueOf(headlineColor)
+        binding.llResultHeader.visibility = View.VISIBLE
+        binding.vResultDivider.visibility = View.VISIBLE
+
+        // Field rows
+        binding.llResultFields.removeAllViews()
+        for ((label, value, mono) in fields) {
+            addFieldRow(label, value, mono)
+        }
+        binding.llResultFields.visibility = View.VISIBLE
+
+        // Hide plain-text fallback
+        binding.tvResult.visibility = View.GONE
+
+        // Attestation badge
+        if (attestation != null) {
+            val (fp, from, until) = attestation
+            val details = buildString {
+                if (!fp.isNullOrEmpty()) appendLine("Key: ${fp.take(16)}…${fp.takeLast(8)}")
+                if (from != null && until != null) append("Valid: $from → $until")
+            }.trim()
+            if (details.isNotEmpty()) {
+                binding.tvResultAttestDetails.text = details
+                binding.tvResultAttestDetails.visibility = View.VISIBLE
+            } else {
+                binding.tvResultAttestDetails.visibility = View.GONE
+            }
+            binding.llResultAttestation.visibility = View.VISIBLE
+        } else {
+            binding.llResultAttestation.visibility = View.GONE
+        }
+
+        // Footnote
+        if (footnote != null) {
+            binding.tvResultNote.text = footnote
+            binding.tvResultNote.visibility = View.VISIBLE
+        } else {
+            binding.tvResultNote.visibility = View.GONE
+        }
+
+        binding.cardResult.visibility = View.VISIBLE
+        binding.tvResultEmpty.visibility = View.GONE
+        showTab(Tab.RESULT)
+    }
+
+    /** Appends a label-above-value row to the fields container. */
+    private fun addFieldRow(label: String, value: String, mono: Boolean = false) {
+        val fields = binding.llResultFields
+        val density = resources.displayMetrics.density
+
+        if (fields.childCount > 0) {
+            val spacer = View(this)
+            spacer.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (10 * density).toInt()
+            )
+            fields.addView(spacer)
+        }
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val labelTv = TextView(this).apply {
+            text = label.uppercase(Locale.getDefault())
+            textSize = 10f
+            typeface = Typeface.DEFAULT
+            letterSpacing = 0.08f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, (2 * density).toInt()) }
+        }
+
+        val valueTv = TextView(this).apply {
+            text = value
+            textSize = 13f
+            typeface = if (mono) Typeface.MONOSPACE else Typeface.DEFAULT
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_primary))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        row.addView(labelTv)
+        row.addView(valueTv)
+        fields.addView(row)
     }
 
     // -------------------------------------------------------------------------

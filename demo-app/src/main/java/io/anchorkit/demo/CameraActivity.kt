@@ -268,13 +268,14 @@ class CameraActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val result = anchorkit.captureAndSubmit(
+                // Capture only — no network calls. Device integrity is checked here.
+                val photo = anchorkit.capturePhoto(
                     this@CameraActivity,
                     flashMode = if (isFlashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
                 )
 
                 val saved = withContext(Dispatchers.IO) {
-                    savePhotoToGallery(result.photo.data, result.photo.timestamp)
+                    savePhotoToGallery(photo.data, photo.timestamp)
                 }
                 if (!saved) {
                     returnError(
@@ -284,32 +285,23 @@ class CameraActivity : AppCompatActivity() {
                     return@launch
                 }
 
+                // Return immediately — attestation signing and API submission
+                // are handled by MainActivity on the Result tab.
                 val intent = Intent().apply {
                     putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_PHOTO)
-                    putExtra(EXTRA_HASH, result.photo.hash)
-                    putExtra(EXTRA_TIMESTAMP_MS, result.photo.timestamp)
-                    putExtra(EXTRA_RECEIPT_DAY, result.receipt.day)
-                    putExtra(EXTRA_RECEIPT_HASH_ID, result.receipt.hash_id)
-                    putExtra(EXTRA_RECEIPT_TABLE, result.receipt.table)
-                    result.receipt.timestamp?.let { putExtra(EXTRA_RECEIPT_TIMESTAMP, it) }
-                    putExtra(EXTRA_ATTESTATION_VERIFIED, result.receipt.attestation_verified ?: false)
-                    putExtra(EXTRA_CERT_FINGERPRINT, result.receipt.cert_fingerprint)
-                    putExtra(EXTRA_CERT_VALID_FROM, result.receipt.cert_valid_from)
-                    putExtra(EXTRA_CERT_VALID_UNTIL, result.receipt.cert_valid_until)
+                    putExtra(EXTRA_HASH, photo.hash)
+                    putExtra(EXTRA_TIMESTAMP_MS, photo.timestamp)
+                    putExtra(EXTRA_PHOTO_WIDTH, photo.width)
+                    putExtra(EXTRA_PHOTO_HEIGHT, photo.height)
+                    putExtra(EXTRA_SUBMISSION_PENDING, true)
                 }
                 setResult(Activity.RESULT_OK, intent)
                 finish()
 
             } catch (e: AnchorKitError.DeviceIntegrityError) {
                 returnError("Device integrity check failed: ${e.message}")
-            } catch (e: AnchorKitError.AttestationError) {
-                returnError("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
-            } catch (e: AnchorKitError.NetworkError) {
-                returnError("Network error: ${e.message}\n\nCheck your internet connection.")
-            } catch (e: AnchorKitError.ApiError) {
-                returnError("API error ${e.statusCode}: ${e.body}")
             } catch (e: Exception) {
-                returnError("Unexpected error: ${e.message}")
+                returnError("Capture error: ${e.message}")
             }
         }
     }
@@ -527,6 +519,11 @@ class CameraActivity : AppCompatActivity() {
         const val EXTRA_HASH = "hash"
         const val EXTRA_TIMESTAMP_MS = "timestamp_ms"
         const val EXTRA_VIDEO_DURATION_MS = "video_duration_ms"
+        // Photo-only: passed when submission is deferred to MainActivity
+        const val EXTRA_PHOTO_WIDTH = "photo_width"
+        const val EXTRA_PHOTO_HEIGHT = "photo_height"
+        const val EXTRA_SUBMISSION_PENDING = "submission_pending"
+        // Video/legacy photo: receipt fields populated before returning
         const val EXTRA_RECEIPT_DAY = "receipt_day"
         const val EXTRA_RECEIPT_HASH_ID = "receipt_hash_id"
         const val EXTRA_RECEIPT_TABLE = "receipt_table"

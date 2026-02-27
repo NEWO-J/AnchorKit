@@ -9,5 +9,6 @@
     <color name="secondary">#F97316</color>
     <color name="secondary_dark">#EA580C</color>
     <color name="success">#10B981</color>
+    <color name="warning">#F59E0B</color>
     <color name="error">#EF4444</color>
 </resources>
