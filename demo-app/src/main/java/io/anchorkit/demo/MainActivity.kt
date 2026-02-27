@@ -132,17 +132,9 @@ class MainActivity : AppCompatActivity() {
             val width = data.getIntExtra(CameraActivity.EXTRA_PHOTO_WIDTH, 0)
             val height = data.getIntExtra(CameraActivity.EXTRA_PHOTO_HEIGHT, 0)
 
-            showStructuredResult(
-                headline = "Photo Captured",
-                headlineColor = ContextCompat.getColor(this, R.color.primary),
-                iconRes = R.drawable.ic_check_circle,
-                fields = listOf(
-                    Triple("Hash", hash, true),
-                    Triple("Captured", capturedAt, false),
-                ),
-                footnote = "Submitting to AnchorKit…"
-            )
+            showTab(Tab.RESULT)
             setLoading(true)
+            showResult("")
 
             lifecycleScope.launch {
                 try {
