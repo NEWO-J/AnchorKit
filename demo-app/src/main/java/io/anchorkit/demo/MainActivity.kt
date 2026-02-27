@@ -1,6 +1,7 @@
 package io.anchorkit.demo
 
 import android.Manifest
+import android.os.Build
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -162,6 +163,9 @@ class MainActivity : AppCompatActivity() {
                             receipt.cert_valid_from?.take(10),
                             receipt.cert_valid_until?.take(10)
                         ) else null,
+                        bootloaderLocked = if (receipt.attestation_verified == true) true else null,
+                        deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
+                        dimensions = if (width > 0 && height > 0) "${width} × ${height} px" else null,
                         footnote = "Hash will be anchored to the Solana blockchain tonight."
                     )
                 } catch (e: AnchorKitError.AttestationError) {
@@ -214,6 +218,8 @@ class MainActivity : AppCompatActivity() {
             attestation = if (attestationVerified) Triple(
                 certFingerprint, certValidFrom?.take(10), certValidUntil?.take(10)
             ) else null,
+            bootloaderLocked = if (attestationVerified) true else null,
+            deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
             footnote = "Hash will be anchored to the Solana blockchain tonight."
         )
     }
@@ -455,6 +461,9 @@ class MainActivity : AppCompatActivity() {
         iconRes: Int,
         fields: List<Triple<String, String, Boolean>>,
         attestation: Triple<String?, String?, String?>? = null,
+        bootloaderLocked: Boolean? = null,
+        deviceModel: String? = null,
+        dimensions: String? = null,
         footnote: String? = null,
     ) {
         // Header
@@ -475,7 +484,7 @@ class MainActivity : AppCompatActivity() {
         // Hide plain-text fallback
         binding.tvResult.visibility = View.GONE
 
-        // Attestation badge
+        // Attestation box
         if (attestation != null) {
             val (fp, from, until) = attestation
             val details = buildString {
@@ -488,9 +497,42 @@ class MainActivity : AppCompatActivity() {
             } else {
                 binding.tvResultAttestDetails.visibility = View.GONE
             }
+
+            // Bootloader row — derived from attestation_verified; always Locked here
+            if (bootloaderLocked != null) {
+                binding.tvResultBootloaderLabel.visibility = View.VISIBLE
+                binding.tvResultBootloaderValue.text = if (bootloaderLocked) "Locked" else "Unlocked"
+                binding.tvResultBootloaderValue.setTextColor(
+                    ContextCompat.getColor(
+                        this,
+                        if (bootloaderLocked) R.color.success else R.color.error
+                    )
+                )
+                binding.tvResultBootloaderValue.visibility = View.VISIBLE
+            } else {
+                binding.tvResultBootloaderLabel.visibility = View.GONE
+                binding.tvResultBootloaderValue.visibility = View.GONE
+            }
+
             binding.llResultAttestation.visibility = View.VISIBLE
         } else {
             binding.llResultAttestation.visibility = View.GONE
+        }
+
+        // Metadata box (device model + dimensions)
+        if (deviceModel != null) {
+            binding.tvResultMetaDevice.text = deviceModel
+            if (dimensions != null) {
+                binding.tvResultMetaDimsLabel.visibility = View.VISIBLE
+                binding.tvResultMetaDims.text = dimensions
+                binding.tvResultMetaDims.visibility = View.VISIBLE
+            } else {
+                binding.tvResultMetaDimsLabel.visibility = View.GONE
+                binding.tvResultMetaDims.visibility = View.GONE
+            }
+            binding.llResultMetadata.visibility = View.VISIBLE
+        } else {
+            binding.llResultMetadata.visibility = View.GONE
         }
 
         // Footnote
