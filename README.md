@@ -57,6 +57,11 @@ Optional scannable badge add-on to visually show your photo is AnchorKit verifie
 ## 🛡️ SiteBadges - Build Trust in Your Brand
 Display a verifiable badge on your site containing your site's AnchorKit statistics.
 
+> [!CAUTION]
+> AnchorKit makes no verification that the **subject matter** of a photo is real,
+> anyone can simply take a photo of another photo, and this is technically valid.
+> In this situation, supplmentary tools can be used to analyze the images for parallax, moire pattern, etc.
+
 ## 🛠️ Photo Submission Pipeline
 
 ```
@@ -171,4 +176,9 @@ Display a verifiable badge on your site containing your site's AnchorKit statist
 
 ---
 
+> [!IMPORTANT]
+> Its important that AnchorKit is **not** treated as an arbiter of truth.
+> It does make it exceedingly difficult for AI images to pose as legitimate media,
+> but its only supplmentary information, everything you see should be taken with a healthy amount of skepticism.
+> 
 ## Installation
