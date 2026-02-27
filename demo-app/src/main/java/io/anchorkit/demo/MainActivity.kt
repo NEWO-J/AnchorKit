@@ -140,8 +140,9 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val receipt = anchorkit.submitPhoto(hash, timestampMs, width, height)
 
-                    val receivedAt = if (receipt.timestamp != null && receipt.timestamp > 0)
-                        serverTimeFmt.format(Date(receipt.timestamp * 1000L))
+                    val receiptTs = receipt.timestamp
+                    val receivedAt = if (receiptTs != null && receiptTs > 0)
+                        serverTimeFmt.format(Date(receiptTs * 1000L))
                     else capturedAt
 
                     showStructuredResult(
@@ -290,7 +291,7 @@ class MainActivity : AppCompatActivity() {
                             add(Triple("Timestamp", tsFormatted, false))
                             if (!result.day.isNullOrEmpty()) add(Triple("Batch Day", result.day!!, false))
                             if (result.hash_id != null) add(Triple("Hash ID", result.hash_id.toString(), false))
-                            if (result.solana_tx != null) add(Triple("Solana TX", result.solana_tx, true))
+                            if (result.solana_tx != null) add(Triple("Solana TX", result.solana_tx!!, true))
                         },
                         attestation = attestation
                     )
