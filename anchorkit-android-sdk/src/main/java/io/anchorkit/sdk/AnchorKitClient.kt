@@ -55,10 +55,10 @@ class AnchorKitClient(
     //
     private val PRODUCTION_HOST = "api.anchorkit.net"
     private val PRODUCTION_PINS: Set<String> = setOf(
-        // Leaf cert SPKI SHA-256 — fetched 2026-02-22 from api.anchorkit.net
-        "Y83h/Xv5lbyCuY26cBxCb1oAIdYXtn9J0QxHsEFcLYQ=",
-        // Intermediate CA SPKI SHA-256 — fetched 2026-02-22 from api.anchorkit.net
-        "kIdp6NNEd8wsugYyyIYFsi1ylMCED3hZbSR8ZFsa/A4="
+        // Leaf cert SPKI SHA-256 — fetched 2026-02-27 from api.anchorkit.net
+        "GKNBas1Z4G+Xi/38PHVUByQKCcQfPiL2rw1WRyeNOZM=",
+        // Intermediate CA SPKI SHA-256 — fetched 2026-02-27 from api.anchorkit.net
+        "y7xVm0TVJNahMr2sZydE2jQH8SquXV9yLF9seROHHHU="
     )
 
     /**
