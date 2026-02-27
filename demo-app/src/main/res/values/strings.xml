@@ -17,6 +17,9 @@
     <string name="result_empty">Results will appear here after submitting or verifying.</string>
     <string name="attestation_verified">Hardware Attestation: Verified</string>
 
+    <string name="anchor_badge_title">AnchorBadge</string>
+    <string name="anchor_badge_desc">Stamp a scannable QR code onto each photo. Drag it into position before shooting.</string>
+
     <string name="settings_title">Settings</string>
     <string name="nav_home">Home</string>
     <string name="nav_result">Result</string>

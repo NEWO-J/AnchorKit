@@ -4,6 +4,7 @@ import android.Manifest
 import android.os.Build
 import android.app.Activity
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Typeface
@@ -31,6 +32,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var anchorkit: AnchorKit
+    private lateinit var prefs: SharedPreferences
     private var isTabSwitching = false
 
     // Hash computed from the last picked photo — non-null once a photo is selected.
@@ -77,6 +79,14 @@ class MainActivity : AppCompatActivity() {
             baseUrl = BuildConfig.ANCHORKIT_BASE_URL
         )
 
+        prefs = getSharedPreferences("anchorkit_prefs", MODE_PRIVATE)
+
+        // Restore AnchorBadge toggle state and wire up persistence
+        binding.switchAnchorBadge.isChecked = prefs.getBoolean("anchor_badge_enabled", false)
+        binding.switchAnchorBadge.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("anchor_badge_enabled", isChecked).apply()
+        }
+
         // Always show the orange outline on the email field, not just when focused.
         val orange = ContextCompat.getColor(this, R.color.primary)
         val strokeStates = arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf())
@@ -115,7 +125,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchCameraActivity() {
-        cameraActivityLauncher.launch(Intent(this, CameraActivity::class.java))
+        val intent = Intent(this, CameraActivity::class.java).apply {
+            putExtra(
+                CameraActivity.EXTRA_BADGE_ENABLED,
+                prefs.getBoolean("anchor_badge_enabled", false)
+            )
+        }
+        cameraActivityLauncher.launch(intent)
     }
 
     private fun showCaptureResult(data: Intent) {
