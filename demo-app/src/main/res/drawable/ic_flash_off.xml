@@ -11,5 +11,5 @@
     <!-- Diagonal slash: filled parallelogram from top-left to bottom-right, ~2dp wide -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M2.29,3.71 L3.71,2.29 L21.71,20.29 L20.29,21.71 Z" />
+        android:pathData="M0.29,1.71 L1.71,0.29 L21.71,20.29 L20.29,21.71 Z" />
 </vector>
