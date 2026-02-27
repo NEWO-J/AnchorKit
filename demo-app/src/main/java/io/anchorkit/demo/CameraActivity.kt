@@ -126,8 +126,15 @@ class CameraActivity : AppCompatActivity() {
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview)
-                // Start fully zoomed out — prevents the 2× default on multi-lens devices.
-                camera?.cameraControl?.setLinearZoom(0f)
+                // Set zoom to the absolute hardware minimum once CameraX reports ZoomState.
+                // Using minZoomRatio directly avoids any ambiguity in the linearZoom mapping
+                // and works correctly for both the ultra-wide back camera and the front camera.
+                camera?.cameraInfo?.zoomState?.observe(this@CameraActivity) { state ->
+                    if (state != null) {
+                        camera?.cameraControl?.setZoomRatio(state.minZoomRatio)
+                        camera?.cameraInfo?.zoomState?.removeObservers(this@CameraActivity)
+                    }
+                }
                 // Show flash button only when the active camera has a flash unit.
                 val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
                 binding.btnFlash.visibility = if (hasFlash) View.VISIBLE else View.GONE
