@@ -1,6 +1,7 @@
 package io.anchorkit.sdk
 
 import android.content.Context
+import android.graphics.PointF
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.Preview
@@ -30,6 +31,12 @@ class AnchorKit(
      * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
      * before invoking this function. The SDK does not request permissions itself.
      *
+     * @param anchorBadge Optional [AnchorBadgeOptions] to stamp a scannable QR code onto the
+     *   photo before hashing and submission. Use [AnchorBadgeOptions.Draggable] to let the
+     *   user drag an [AnchorBadgeOverlayView] to the desired spot, or [AnchorBadgeOptions.Fixed]
+     *   to specify the position programmatically. When non-null, the hash anchored to the
+     *   blockchain is the hash of the badged image. Defaults to null (no badge).
+     *
      * @throws AnchorKitError.DeviceIntegrityError if the device shows signs of
      *         being rooted or having an unlocked bootloader
      * @throws AnchorKitError.AttestationError if the device cannot produce hardware attestation
@@ -38,7 +45,8 @@ class AnchorKit(
      */
     suspend fun captureAndSubmit(
         lifecycleOwner: LifecycleOwner,
-        flashMode: Int = ImageCapture.FLASH_MODE_OFF
+        flashMode: Int = ImageCapture.FLASH_MODE_OFF,
+        anchorBadge: AnchorBadgeOptions? = null
     ): CaptureResult {
         // Reject devices that show signs of being rooted or having an unlocked
         // bootloader before touching the camera or the network.
@@ -51,7 +59,13 @@ class AnchorKit(
             )
         }
 
-        val photo = photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+        var photo = photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+
+        // Apply the AnchorBadge if requested. The badge is composited onto the image
+        // before hashing so the anchored hash reflects the final visual output.
+        if (anchorBadge != null) {
+            photo = applyBadge(photo, anchorBadge)
+        }
 
         // Fetch a fresh server-issued nonce immediately before signing.
         // The nonce is bound into the signed payload so the attestation cannot
@@ -173,11 +187,17 @@ class AnchorKit(
      * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
      * before invoking this function.
      *
+     * @param anchorBadge Optional [AnchorBadgeOptions] to stamp a scannable QR code onto the
+     *   photo before hashing. Use [AnchorBadgeOptions.Draggable] or [AnchorBadgeOptions.Fixed].
+     *   When non-null, [PhotoResult.data] and [PhotoResult.hash] reflect the badged image.
+     *   Defaults to null (no badge).
+     *
      * @throws AnchorKitError.DeviceIntegrityError if the device shows signs of tampering
      */
     suspend fun capturePhoto(
         lifecycleOwner: LifecycleOwner,
-        flashMode: Int = ImageCapture.FLASH_MODE_OFF
+        flashMode: Int = ImageCapture.FLASH_MODE_OFF,
+        anchorBadge: AnchorBadgeOptions? = null
     ): PhotoResult {
         DeviceIntegrity.check()?.let { reason ->
             throw AnchorKitError.DeviceIntegrityError(
@@ -185,7 +205,11 @@ class AnchorKit(
                 "Attested submissions require an unmodified device with a locked bootloader."
             )
         }
-        return photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+        var photo = photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+        if (anchorBadge != null) {
+            photo = applyBadge(photo, anchorBadge)
+        }
+        return photo
     }
 
     /**
@@ -294,6 +318,26 @@ class AnchorKit(
      */
     internal fun hash(photoData: ByteArray): String {
         return HashUtils.hashPhoto(photoData)
+    }
+
+    // -------------------------------------------------------------------------
+    // AnchorBadge — internal helpers
+    // -------------------------------------------------------------------------
+
+    /**
+     * Apply an [AnchorBadgeOptions] badge to [photo], returning a new [PhotoResult]
+     * whose [PhotoResult.data] and [PhotoResult.hash] reflect the composited image.
+     */
+    private fun applyBadge(photo: PhotoResult, options: AnchorBadgeOptions): PhotoResult {
+        val pos: PointF = when (options) {
+            is AnchorBadgeOptions.Draggable -> options.overlayView.getNormalizedPosition()
+            is AnchorBadgeOptions.Fixed     -> PointF(options.normalizedX, options.normalizedY)
+        }
+        val badgedBytes = AnchorBadge.applyBadgeToJpeg(photo.data, pos.x, pos.y, options)
+        return photo.copy(
+            data = badgedBytes,
+            hash = HashUtils.hashPhoto(badgedBytes)
+        )
     }
 }
 

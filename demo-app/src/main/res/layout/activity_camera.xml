@@ -156,6 +156,17 @@
 
     </LinearLayout>
 
+    <!-- AnchorBadge draggable QR overlay — visible only when AnchorBadge is enabled in Settings.
+         Default position: bottom-right of the preview, above the camera controls bar. -->
+    <io.anchorkit.sdk.AnchorBadgeOverlayView
+        android:id="@+id/anchorBadgeOverlay"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="24dp"
+        android:layout_marginBottom="176dp"
+        android:visibility="gone" />
+
     <!-- Capturing overlay — shown while the SDK is taking the photo + submitting -->
     <FrameLayout
         android:id="@+id/capturingOverlay"
