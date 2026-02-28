@@ -118,6 +118,21 @@ object AnchorBadge {
 
         // ── Navy fills the whole frame; photo sits in the centre window ────────
         canvas.drawColor(COLOR_NAVY)
+
+        // Thin light blue-gray outline at the photo edge, extending into the navy frame.
+        // Drawn before the photo so the photo itself covers any inner anti-aliasing bleed.
+        val outlineSW = (sidePad * 0.35f).coerceAtLeast(2f)
+        val half = outlineSW / 2f
+        canvas.drawRect(
+            sidePad - half, topPad - half,
+            sidePad + photoW + half, topPad + photoH + half,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#8FAABB")
+                style = Paint.Style.STROKE
+                strokeWidth = outlineSW
+            }
+        )
+
         canvas.drawBitmap(photoBitmap, sidePad.toFloat(), topPad.toFloat(), null)
 
         // ── Right column: QR then "SCAN TO VERIFY" ────────────────────────────
@@ -202,7 +217,7 @@ object AnchorBadge {
 
         // "Captured on: …" pill — below icon row, with leading camera icon
         if (!deviceModel.isNullOrEmpty()) {
-            val pillTextSize = (stripH * 0.115f).coerceAtLeast(10f)
+            val pillTextSize = (stripH * 0.115f).coerceAtLeast(10f) * 1.15f
             val camSize      = pillTextSize * 1.15f
             val pillPadH     = pillTextSize * 0.55f
             val pillPadV     = pillTextSize * 0.35f
@@ -222,9 +237,7 @@ object AnchorBadge {
             // Shift pillLeft left by one pillPadH so the camera icon's left edge lands at iconX
             // (aligned with the AnchorKit logo).
             val pillLeft = iconX.toFloat() - pillPadH
-            // Vertically centre the pill against the "SCAN TO VERIFY" text on the right.
-            val scanTextCenterY = scanLabelBaselineY - scanTextSize * 0.5f
-            val pillTop  = scanTextCenterY - pillH / 2f
+            val pillTop  = iconY + iconSize + vPad * 0.75f
             val pillBot  = pillTop + pillH
 
             // Pill background
