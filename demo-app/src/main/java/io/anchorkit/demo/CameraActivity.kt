@@ -28,8 +28,6 @@ import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import io.anchorkit.demo.databinding.ActivityCameraBinding
-import io.anchorkit.sdk.AnchorBadge
-import io.anchorkit.sdk.AnchorBadgeOptions
 import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.VideoRecordingSession
@@ -51,9 +49,6 @@ class CameraActivity : AppCompatActivity() {
     private var isRecording = false
     private var videoRecordingSession: VideoRecordingSession? = null
     private var isFlashOn = false
-
-    // AnchorBadge state — read from intent extra set by MainActivity
-    private var badgeEnabled = false
 
     // Only needed for Android 9 (API 28) and below.
     private val writeStoragePermissionLauncher = registerForActivityResult(
@@ -89,12 +84,6 @@ class CameraActivity : AppCompatActivity() {
             apiKey = BuildConfig.ANCHORKIT_API_KEY,
             baseUrl = BuildConfig.ANCHORKIT_BASE_URL
         )
-
-        // Show the draggable QR overlay when AnchorBadge is enabled in Settings
-        badgeEnabled = intent.getBooleanExtra(EXTRA_BADGE_ENABLED, false)
-        if (badgeEnabled) {
-            binding.anchorBadgeOverlay.visibility = View.VISIBLE
-        }
 
         // Pre-request WRITE_EXTERNAL_STORAGE on Android ≤ 9 so it's granted by
         // the time the user taps the shutter.
@@ -300,23 +289,11 @@ class CameraActivity : AppCompatActivity() {
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
                     val buffer = image.planes[0].buffer
-                    val rawData = ByteArray(buffer.remaining())
-                    buffer.get(rawData)
+                    val photoData = ByteArray(buffer.remaining())
+                    buffer.get(photoData)
                     val width = image.width
                     val height = image.height
                     image.close()
-
-                    // If AnchorBadge is enabled, composite the QR code at the position
-                    // the user dragged the overlay to before computing the hash.
-                    val photoData = if (badgeEnabled) {
-                        val pos = binding.anchorBadgeOverlay.getNormalizedPosition()
-                        AnchorBadge.applyBadgeToJpeg(
-                            rawData, pos.x, pos.y,
-                            AnchorBadgeOptions.Fixed(pos.x, pos.y)
-                        )
-                    } else {
-                        rawData
-                    }
 
                     val hash = sha256Hex(photoData)
                     val timestamp = System.currentTimeMillis()
@@ -569,9 +546,6 @@ class CameraActivity : AppCompatActivity() {
     companion object {
         private const val PHOTO_INNER_DP = 68
         private const val VIDEO_INNER_DP = 52
-
-        /** Pass `true` from MainActivity when the AnchorBadge setting is enabled. */
-        const val EXTRA_BADGE_ENABLED = "badge_enabled"
 
         const val EXTRA_MEDIA_TYPE = "media_type"
         const val MEDIA_TYPE_PHOTO = "photo"
