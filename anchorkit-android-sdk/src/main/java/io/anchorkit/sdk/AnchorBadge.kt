@@ -38,7 +38,7 @@ object AnchorBadge {
     private val COLOR_WHITE   = Color.WHITE                   // QR background
     private val COLOR_SUBTLE  = Color.parseColor("#94A3B8")   // secondary text
 
-    private const val VERIFY_BASE_URL = "https://api.framechain.net/verify"
+    private const val VERIFY_BASE_URL = "https://anchorkit.net/verify"
 
     // ─────────────────────────────────────────────────────────────────────────
     // Public API
