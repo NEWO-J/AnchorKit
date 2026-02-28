@@ -8,7 +8,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Typeface
 import android.net.Uri
 import android.provider.MediaStore
@@ -26,6 +25,7 @@ import io.anchorkit.sdk.AnchorBadge
 import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.HashUtils
+import io.anchorkit.sdk.PhotoResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -317,13 +317,16 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // Photo is known (verified or pending) — decode, correct EXIF orientation, and frame it.
+                // Photo is known (verified or pending) — frame it using the public SDK API.
                 val framedBitmap = withContext(Dispatchers.IO) {
-                    val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                    val oriented = AnchorBadge.applyExifOrientation(raw, bytes)
-                    if (oriented !== raw) raw.recycle()
-                    val model = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-                    AnchorBadge.createVerificationFrame(this@MainActivity, oriented, hash, model, isPending = isPending)
+                    val photo = PhotoResult(
+                        data = bytes,
+                        hash = hash,
+                        timestamp = System.currentTimeMillis(),
+                        width = 0,
+                        height = 0
+                    )
+                    AnchorBadge.create(this@MainActivity, photo)
                 }
 
                 badgeFramedBitmap = framedBitmap
