@@ -306,7 +306,9 @@ class MainActivity : AppCompatActivity() {
 
                 val verifyResult = anchorkit.verify(hash)
 
-                if (!verifyResult.verified) {
+                // Block only if hash is completely unknown to the system.
+                val isPending = !verifyResult.verified && verifyResult.hash_id != null
+                if (!verifyResult.verified && !isPending) {
                     binding.tvBadgeStatus.text = getString(R.string.anchor_badge_not_verified)
                     binding.tvBadgeStatus.setTextColor(
                         ContextCompat.getColor(this@MainActivity, R.color.error)
@@ -315,23 +317,30 @@ class MainActivity : AppCompatActivity() {
                     return@launch
                 }
 
-                // Photo is verified on-chain — decode, correct EXIF orientation, and frame it.
+                // Photo is known (verified or pending) — decode, correct EXIF orientation, and frame it.
                 val framedBitmap = withContext(Dispatchers.IO) {
                     val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     val oriented = AnchorBadge.applyExifOrientation(raw, bytes)
                     if (oriented !== raw) raw.recycle()
                     val model = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
-                    AnchorBadge.createVerificationFrame(this@MainActivity, oriented, hash, model)
+                    AnchorBadge.createVerificationFrame(this@MainActivity, oriented, hash, model, isPending = isPending)
                 }
 
                 badgeFramedBitmap = framedBitmap
 
                 binding.ivBadgePreview.setImageBitmap(framedBitmap)
                 binding.ivBadgePreview.visibility = View.VISIBLE
-                binding.tvBadgeStatus.text = getString(R.string.anchor_badge_success)
-                binding.tvBadgeStatus.setTextColor(
-                    ContextCompat.getColor(this@MainActivity, R.color.success)
-                )
+                if (isPending) {
+                    binding.tvBadgeStatus.text = getString(R.string.anchor_badge_pending)
+                    binding.tvBadgeStatus.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.warning)
+                    )
+                } else {
+                    binding.tvBadgeStatus.text = getString(R.string.anchor_badge_success)
+                    binding.tvBadgeStatus.setTextColor(
+                        ContextCompat.getColor(this@MainActivity, R.color.success)
+                    )
+                }
                 binding.tvBadgeStatus.visibility = View.VISIBLE
                 binding.btnDownloadBadge.visibility = View.VISIBLE
 
