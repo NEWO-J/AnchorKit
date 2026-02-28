@@ -181,6 +181,13 @@ object AnchorBadge {
         } catch (_: Exception) { null }
 
         if (iconBitmap != null) {
+            // Orange border: fill rect slightly larger than the icon, then draw icon on top.
+            val iconBorderGap = (iconSize * 0.07f).coerceAtLeast(3f)
+            canvas.drawRect(
+                iconX - iconBorderGap, iconY - iconBorderGap,
+                iconX + iconSize + iconBorderGap, iconY + iconSize + iconBorderGap,
+                Paint().apply { color = COLOR_ORANGE }
+            )
             canvas.drawBitmap(iconBitmap, iconX.toFloat(), iconY.toFloat(), null)
             iconBitmap.recycle()
         }
@@ -295,41 +302,51 @@ object AnchorBadge {
     }
 
     /**
-     * Draw a minimal camera silhouette centred at ([cx], [cy]), [size] pixels wide,
-     * filled with [tint]. Used as the leading icon inside the "Captured on:" pill.
+     * Draw the Material camera icon (matching [ic_photo_camera.xml]) centred at ([cx], [cy]),
+     * scaled to [size] pixels wide, filled with [tint].
+     *
+     * Reproduces the exact two-path structure of the vector asset:
+     * - Path 1: camera body outline (CW) + CCW inner circle (r=5) that punches a
+     *   transparent aperture ring via Android's WINDING fill rule.
+     * - Path 2: inner lens disc (r=3.2) drawn on top, filling the aperture centre.
      */
     private fun drawCameraIcon(canvas: Canvas, cx: Float, cy: Float, size: Float, tint: Int) {
-        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint; style = Paint.Style.FILL }
+        // Map the 24×24 viewport to canvas coords, centred at (cx, cy).
+        val s  = size / 24f
+        val ox = cx - 12f * s
+        val oy = cy - 12f * s
+        fun fx(x: Float) = ox + x * s
+        fun fy(y: Float) = oy + y * s
 
-        val bodyW  = size
-        val bodyH  = size * 0.70f
-        val cornerR = size * 0.16f
-        val bodyL  = cx - bodyW / 2f
-        val bodyT  = cy - bodyH / 2f + size * 0.08f
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint; style = Paint.Style.FILL }
 
-        // Body
-        canvas.drawRoundRect(RectF(bodyL, bodyT, bodyL + bodyW, bodyT + bodyH),
-            cornerR, cornerR, fill)
+        // Path 1: camera body (CW) with aperture hole.
+        // CCW inner circle (r=5) cancels the body winding (+1 + -1 = 0) leaving a transparent ring.
+        val bodyPath = android.graphics.Path().apply {
+            fillType = android.graphics.Path.FillType.WINDING
 
-        // Viewfinder bump (top-centre)
-        val bumpW = size * 0.30f
-        val bumpH = size * 0.18f
-        canvas.drawRoundRect(
-            RectF(cx - bumpW / 2f, bodyT - bumpH + cornerR, cx + bumpW / 2f, bodyT + cornerR),
-            cornerR * 0.5f, cornerR * 0.5f, fill
-        )
+            // Camera body — matches ic_photo_camera.xml path data exactly.
+            moveTo(fx(9f),     fy(2f))
+            lineTo(fx(7.17f),  fy(4f))
+            lineTo(fx(4f),     fy(4f))
+            cubicTo(fx(2.9f),  fy(4f),    fx(2f),    fy(4.9f),  fx(2f),   fy(6f))
+            lineTo(fx(2f),     fy(18f))
+            cubicTo(fx(2f),    fy(19.1f), fx(2.9f),  fy(20f),   fx(4f),   fy(20f))
+            lineTo(fx(20f),    fy(20f))
+            cubicTo(fx(21.1f), fy(20f),   fx(22f),   fy(19.1f), fx(22f),  fy(18f))
+            lineTo(fx(22f),    fy(6f))
+            cubicTo(fx(22f),   fy(4.9f),  fx(21.1f), fy(4f),    fx(20f),  fy(4f))
+            lineTo(fx(16.83f), fy(4f))
+            lineTo(fx(15f),    fy(2f))
+            close()
 
-        // Lens aperture (navy circle — reveals strip background through the icon)
-        val lensR  = size * 0.21f
-        val lensCY = bodyT + bodyH * 0.52f
-        canvas.drawCircle(cx, lensCY, lensR,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_NAVY; style = Paint.Style.FILL })
+            // CCW aperture ring — winding −1 punches a transparent hole (r=5 centred at (12,12)).
+            addCircle(fx(12f), fy(12f), 5f * s, android.graphics.Path.Direction.CCW)
+        }
+        canvas.drawPath(bodyPath, paint)
 
-        // Inner lens ring (orange, semi-transparent — gives depth)
-        canvas.drawCircle(cx, lensCY, lensR * 0.50f,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = tint; style = Paint.Style.FILL; alpha = 90
-            })
+        // Path 2: inner lens disc (r=3.2) fills the centre of the aperture hole.
+        canvas.drawCircle(fx(12f), fy(12f), 3.2f * s, paint)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
