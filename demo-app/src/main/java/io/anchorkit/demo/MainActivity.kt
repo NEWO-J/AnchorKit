@@ -320,7 +320,8 @@ class MainActivity : AppCompatActivity() {
                     val raw = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                     val oriented = AnchorBadge.applyExifOrientation(raw, bytes)
                     if (oriented !== raw) raw.recycle()
-                    AnchorBadge.createVerificationFrame(oriented, hash)
+                    val model = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}"
+                    AnchorBadge.createVerificationFrame(this@MainActivity, oriented, hash, model)
                 }
 
                 badgeFramedBitmap = framedBitmap
