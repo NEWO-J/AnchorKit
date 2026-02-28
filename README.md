@@ -1,4 +1,4 @@
-# ⚓ AnchorKit — Your camera, under oath
+# AnchorKit — Your camera, under oath
 <p align="center">
   <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
 </p>
@@ -52,7 +52,11 @@
 ## 🚀 Quick Start 
 
 ## 🔰 AnchorBadges
-Optional scannable badge add-on to visually show your photo is AnchorKit verified.
+Optional scannable badge add-on to that links directly to your photo or video's verification.
+```Kotlin
+val badge: Bitmap = AnchorBadge.create(context, photo)
+```
+
 
 ## 🛡️ SiteBadges - Build Trust in Your Brand
 Display a verifiable badge on your site containing your site's AnchorKit statistics.
