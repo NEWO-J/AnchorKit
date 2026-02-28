@@ -22,9 +22,10 @@ import java.io.ByteArrayInputStream
  * The only public entry point is [create], which accepts a [PhotoResult] returned
  * by [AnchorKit.capturePhoto] or [AnchorKit.captureAndSubmit].  Tying the input
  * to [PhotoResult] ensures that:
- *  - the QR code always encodes the hash that was submitted to the API, and
- *  - EXIF orientation correction is applied consistently, with no action required
- *    from the caller.
+ *  - the QR code always encodes the hash that was submitted to the API,
+ *  - EXIF orientation correction is applied consistently, and
+ *  - the "Captured on:" device label is read directly from the photo's EXIF
+ *    metadata and omitted automatically when that information is absent.
  *
  * All rendering happens on-device; no image data leaves the device.
  */
@@ -52,26 +53,24 @@ object AnchorBadge {
      * [PhotoResult] produced by the SDK's capture pipeline, it is guaranteed to
      * match the hash that was submitted to the API.
      *
-     * EXIF orientation is applied automatically — callers do not need to decode
-     * or rotate the image themselves.
+     * EXIF orientation and the "Captured on:" device label are both resolved
+     * automatically from the photo's embedded EXIF metadata.  If the EXIF does
+     * not contain device information the pill is omitted from the badge entirely.
      *
-     * @param context     Context used to load the bundled AnchorKit icon resource.
-     * @param photo       The [PhotoResult] returned by [AnchorKit.capturePhoto] or
-     *                    [AnchorKit.captureAndSubmit].
-     * @param deviceModel Optional device string shown in the "Captured on:" pill
-     *                    (e.g. `"${Build.MANUFACTURER} ${Build.MODEL}"`).
-     *                    Omit to suppress the pill entirely.
-     * @return            A new [Bitmap] containing the photo inside the branded frame.
+     * @param context Context used to load the bundled AnchorKit icon resource.
+     * @param photo   The [PhotoResult] returned by [AnchorKit.capturePhoto] or
+     *                [AnchorKit.captureAndSubmit].
+     * @return        A new [Bitmap] containing the photo inside the branded frame.
      */
     fun create(
         context: Context,
-        photo: PhotoResult,
-        deviceModel: String? = null
+        photo: PhotoResult
     ): Bitmap {
         val rawBitmap = BitmapFactory.decodeByteArray(photo.data, 0, photo.data.size)
         val orientedBitmap = applyExifOrientation(rawBitmap, photo.data)
         if (orientedBitmap !== rawBitmap) rawBitmap.recycle()
 
+        val deviceModel = extractDeviceModel(photo.data)
         val framed = buildFrame(context, orientedBitmap, photo.hash, deviceModel)
         orientedBitmap.recycle()
         return framed
@@ -116,6 +115,26 @@ object AnchorBadge {
     // ─────────────────────────────────────────────────────────────────────────
     // Private — frame rendering
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Extract a human-readable device label from the EXIF Make/Model tags
+     * embedded in [jpegBytes].  Returns null if neither tag is present, which
+     * causes the "Captured on:" pill to be omitted from the badge.
+     *
+     * Combines Make and Model when both are available (e.g. "Google Pixel 9a");
+     * falls back to whichever single tag is present.
+     */
+    private fun extractDeviceModel(jpegBytes: ByteArray): String? = try {
+        val exif  = ExifInterface(ByteArrayInputStream(jpegBytes))
+        val make  = exif.getAttribute(ExifInterface.TAG_MAKE)?.trim()?.takeIf { it.isNotEmpty() }
+        val model = exif.getAttribute(ExifInterface.TAG_MODEL)?.trim()?.takeIf { it.isNotEmpty() }
+        when {
+            make != null && model != null -> "$make $model"
+            model != null                -> model
+            make  != null                -> make
+            else                         -> null
+        }
+    } catch (_: Exception) { null }
 
     private fun buildFrame(
         context: Context,
