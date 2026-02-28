@@ -80,6 +80,11 @@ object AnchorBadge {
      * @param hash          SHA-256 hash of the photo, appended to [verifyBaseUrl] in the QR.
      * @param deviceModel   Optional device model string shown in the "Captured on:" pill
      *                      (e.g. `"${Build.MANUFACTURER} ${Build.MODEL}"`).
+     * @param isPending     When `true` the photo's hash is known to the system but not yet
+     *                      anchored on-chain. The QR code still encodes the verify URL so
+     *                      the live status is always reachable; the label above the QR reads
+     *                      "ANCHOR PENDING" in amber instead of "SCAN TO VERIFY" in orange,
+     *                      and the accent line uses amber to signal the in-progress state.
      * @param verifyBaseUrl Base URL for the verification page.
      *                      Defaults to `"https://api.framechain.net/verify"`.
      * @return              A new [Bitmap] containing the photo inside the frame.
@@ -89,6 +94,7 @@ object AnchorBadge {
         photoBitmap: Bitmap,
         hash: String,
         deviceModel: String? = null,
+        isPending: Boolean = false,
         verifyBaseUrl: String = "https://api.framechain.net/verify"
     ): Bitmap {
         val url = "$verifyBaseUrl/$hash"
@@ -116,20 +122,22 @@ object AnchorBadge {
         canvas.drawRect(0f, stripTop.toFloat(), frameW.toFloat(), frameH.toFloat(),
             Paint().apply { color = COLOR_NAVY })
 
-        // ── Orange accent line at photo / strip boundary ──────────────────────
+        // ── Accent line at photo / strip boundary ────────────────────────────
+        // Orange when verified; amber when the anchor is still pending.
+        val accentColor = if (isPending) Color.parseColor("#F59E0B") else COLOR_ORANGE
         val accentH = (photoH * 0.004f).coerceAtLeast(3f)
         canvas.drawRect(0f, stripTop.toFloat(), frameW.toFloat(), stripTop + accentH,
-            Paint().apply { color = COLOR_ORANGE })
+            Paint().apply { color = accentColor })
 
         // ── QR code (right column) ────────────────────────────────────────────
         val scanTextSize = (stripH * 0.11f).coerceAtLeast(9f)
         val scanPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_ORANGE
+            color = accentColor
             textSize = scanTextSize
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             letterSpacing = 0.10f
         }
-        val scanLabel = "SCAN TO VERIFY"
+        val scanLabel = if (isPending) "ANCHOR PENDING" else "SCAN TO VERIFY"
         val scanLabelW = scanPaint.measureText(scanLabel)
 
         // QR fills the remaining height after the "SCAN TO VERIFY" label.
@@ -152,7 +160,7 @@ object AnchorBadge {
         canvas.drawRect(
             (qrX - border).toFloat(), (qrY - border).toFloat(),
             (qrX + qrSize + border).toFloat(), (qrY + qrSize + border).toFloat(),
-            Paint().apply { color = COLOR_ORANGE }
+            Paint().apply { color = accentColor }
         )
         canvas.drawBitmap(qrBitmap, qrX.toFloat(), qrY.toFloat(), null)
         qrBitmap.recycle()
