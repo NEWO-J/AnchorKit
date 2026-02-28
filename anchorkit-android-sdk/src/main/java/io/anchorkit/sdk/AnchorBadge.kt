@@ -155,10 +155,11 @@ object AnchorBadge {
         }
         val scanLabel  = "SCAN TO VERIFY"
         val scanLabelW = scanPaint.measureText(scanLabel)
+        val scanLabelBaselineY = qrY + qrSize + scanGap + scanTextSize
         canvas.drawText(
             scanLabel,
             rightColX + (rightColW - scanLabelW) / 2f,
-            qrY + qrSize + scanGap + scanTextSize,
+            scanLabelBaselineY,
             scanPaint
         )
 
@@ -181,13 +182,6 @@ object AnchorBadge {
         } catch (_: Exception) { null }
 
         if (iconBitmap != null) {
-            // Orange border: fill rect slightly larger than the icon, then draw icon on top.
-            val iconBorderGap = (iconSize * 0.07f).coerceAtLeast(3f)
-            canvas.drawRect(
-                iconX - iconBorderGap, iconY - iconBorderGap,
-                iconX + iconSize + iconBorderGap, iconY + iconSize + iconBorderGap,
-                Paint().apply { color = COLOR_ORANGE }
-            )
             canvas.drawBitmap(iconBitmap, iconX.toFloat(), iconY.toFloat(), null)
             iconBitmap.recycle()
         }
@@ -221,12 +215,16 @@ object AnchorBadge {
             }
             val label    = "Captured on: $deviceModel"
             val labelW   = pillTextPaint.measureText(label)
-            val maxLabelW = (leftColRight - iconX).toFloat() - 2 * pillPadH - camSize - iconTextGap
+            val maxLabelW = (leftColRight - iconX).toFloat() - pillPadH - camSize - iconTextGap
             val pillW    = (2 * pillPadH + camSize + iconTextGap + labelW.coerceAtMost(maxLabelW))
             val pillH    = camSize.coerceAtLeast(pillTextSize) + 2 * pillPadV
 
-            val pillLeft = iconX.toFloat()
-            val pillTop  = iconY + iconSize + vPad * 0.75f
+            // Shift pillLeft left by one pillPadH so the camera icon's left edge lands at iconX
+            // (aligned with the AnchorKit logo).
+            val pillLeft = iconX.toFloat() - pillPadH
+            // Vertically centre the pill against the "SCAN TO VERIFY" text on the right.
+            val scanTextCenterY = scanLabelBaselineY - scanTextSize * 0.5f
+            val pillTop  = scanTextCenterY - pillH / 2f
             val pillBot  = pillTop + pillH
 
             // Pill background
@@ -237,10 +235,10 @@ object AnchorBadge {
                 Paint(Paint.ANTI_ALIAS_FLAG).apply { color = COLOR_SURFACE }
             )
 
-            // Camera icon — centred vertically in pill
+            // Camera icon — centred vertically in pill; left edge aligns with AnchorKit logo.
             val camCX = pillLeft + pillPadH + camSize / 2f
             val camCY = pillTop + pillH / 2f
-            drawCameraIcon(canvas, camCX, camCY, camSize, COLOR_ORANGE)
+            drawCameraIcon(canvas, camCX, camCY, camSize, COLOR_ORANGE, COLOR_SURFACE)
 
             // Text — clipped so it never overflows the pill
             val textX = camCX + camSize / 2f + iconTextGap
@@ -302,15 +300,16 @@ object AnchorBadge {
     }
 
     /**
-     * Draw the Material camera icon (matching [ic_photo_camera.xml]) centred at ([cx], [cy]),
-     * scaled to [size] pixels wide, filled with [tint].
+     * Draw the Material camera icon centred at ([cx], [cy]), scaled to [size] pixels, filled
+     * with [tint].  The aperture ring is rendered by drawing a [bgColor] circle (r=5) over the
+     * solid body and then drawing the lens disc (r=3.2) in [tint] on top — this guarantees a
+     * visible lens circle regardless of canvas layer or fill-rule quirks.
      *
-     * Reproduces the exact two-path structure of the vector asset:
-     * - Path 1: camera body outline (CW) + CCW inner circle (r=5) that punches a
-     *   transparent aperture ring via Android's WINDING fill rule.
-     * - Path 2: inner lens disc (r=3.2) drawn on top, filling the aperture centre.
+     * @param bgColor  Background colour of the surface the icon sits on (used for the aperture ring).
      */
-    private fun drawCameraIcon(canvas: Canvas, cx: Float, cy: Float, size: Float, tint: Int) {
+    private fun drawCameraIcon(
+        canvas: Canvas, cx: Float, cy: Float, size: Float, tint: Int, bgColor: Int
+    ) {
         // Map the 24×24 viewport to canvas coords, centred at (cx, cy).
         val s  = size / 24f
         val ox = cx - 12f * s
@@ -320,12 +319,8 @@ object AnchorBadge {
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = tint; style = Paint.Style.FILL }
 
-        // Path 1: camera body (CW) with aperture hole.
-        // CCW inner circle (r=5) cancels the body winding (+1 + -1 = 0) leaving a transparent ring.
+        // Step 1: solid camera body (no aperture hole in the path itself).
         val bodyPath = android.graphics.Path().apply {
-            fillType = android.graphics.Path.FillType.WINDING
-
-            // Camera body — matches ic_photo_camera.xml path data exactly.
             moveTo(fx(9f),     fy(2f))
             lineTo(fx(7.17f),  fy(4f))
             lineTo(fx(4f),     fy(4f))
@@ -339,14 +334,15 @@ object AnchorBadge {
             lineTo(fx(16.83f), fy(4f))
             lineTo(fx(15f),    fy(2f))
             close()
-
-            // CCW aperture ring — winding −1 punches a transparent hole (r=5 centred at (12,12)).
-            addCircle(fx(12f), fy(12f), 5f * s, android.graphics.Path.Direction.CCW)
         }
         canvas.drawPath(bodyPath, paint)
 
-        // Path 2: inner lens disc (r=3.2) fills the centre of the aperture hole.
-        canvas.drawCircle(fx(12f), fy(12f), 3.2f * s, paint)
+        // Step 2: aperture ring — paint a bgColor circle (r=5) to carve out the ring area.
+        canvas.drawCircle(cx, cy, 5f * s,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bgColor; style = Paint.Style.FILL })
+
+        // Step 3: lens disc (r=3.2) clearly visible in the centre of the aperture.
+        canvas.drawCircle(cx, cy, 3.2f * s, paint)
     }
 
     // ─────────────────────────────────────────────────────────────────────────
