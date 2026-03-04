@@ -142,7 +142,7 @@ object AnchorBadge {
         hash: String,
         deviceModel: String?
     ): Bitmap {
-        val url = "$VERIFY_BASE_URL/$hash"
+        val url = "$VERIFY_BASE_URL?hash=$hash"
 
         val photoW = photoBitmap.width
         val photoH = photoBitmap.height
