@@ -170,7 +170,7 @@ object AnchorBadge {
             sidePad - half, topPad - half,
             sidePad + photoW + half, topPad + photoH + half,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#8FAABB")
+                color = Color.parseColor("#1E3D6E")
                 style = Paint.Style.STROKE
                 strokeWidth = outlineSW
             }
@@ -183,16 +183,18 @@ object AnchorBadge {
         val scanTextSize = (stripH * 0.10f).coerceAtLeast(9f)
         val scanGap      = vPad * 0.5f
 
-        val qrY    = stripTop + vPad
         val qrSize = (stripH - 2 * vPad - scanTextSize - scanGap).toInt().coerceAtLeast(48)
+        val border = (qrSize * 0.035f).toInt().coerceAtLeast(3)
 
+        // Anchor to bottom-right corner of the strip
+        val qrX = frameW - sidePad - qrSize
+        val qrY = (frameH - vPad - scanTextSize - scanGap).toInt() - qrSize
+
+        // rightColX still defines the left-column boundary
         val rightColX = (frameW * 0.60f).toInt()
-        val rightColW = frameW - rightColX - sidePad
-        val qrX = rightColX + (rightColW - qrSize) / 2
 
         val qrBitmap = buildBrandedQr(url, qrSize, context)
 
-        val border = (qrSize * 0.035f).toInt().coerceAtLeast(3)
         canvas.drawRect(
             (qrX - border).toFloat(), (qrY - border).toFloat(),
             (qrX + qrSize + border).toFloat(), (qrY + qrSize + border).toFloat(),
@@ -211,7 +213,7 @@ object AnchorBadge {
         val scanLabelW = scanPaint.measureText(scanLabel)
         canvas.drawText(
             scanLabel,
-            rightColX + (rightColW - scanLabelW) / 2f,
+            qrX + (qrSize - scanLabelW) / 2f,
             qrY + qrSize + scanGap + scanTextSize,
             scanPaint
         )
