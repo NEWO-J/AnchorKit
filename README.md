@@ -17,7 +17,8 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#installation">Installation</a> •
   <a href="#credits">Credits</a> •
-  <a href="#license">License</a>
+  <a href="#license">License</a> •
+  <a href="https://anchorkit.net">AnchorKit.net</a>
 </p>
 
 ## What It Does
