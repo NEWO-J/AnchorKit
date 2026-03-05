@@ -51,9 +51,6 @@ dependencies {
     // EXIF metadata reading (for actual photo capture timestamp from gallery images)
     implementation 'androidx.exifinterface:exifinterface:1.3.7'
 
-    // QR code generation for AnchorBadges
-    implementation 'com.google.zxing:core:3.5.3'
-    
     // Testing
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

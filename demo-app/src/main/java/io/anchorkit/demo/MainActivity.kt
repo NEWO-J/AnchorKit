@@ -3,14 +3,11 @@ package io.anchorkit.demo
 import android.Manifest
 import android.os.Build
 import android.app.Activity
-import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
-import android.graphics.Bitmap
 import android.graphics.Typeface
 import android.net.Uri
-import android.provider.MediaStore
 import android.view.View
 import android.os.Bundle
 import android.widget.LinearLayout
@@ -21,7 +18,6 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import io.anchorkit.demo.databinding.ActivityMainBinding
-import io.anchorkit.sdk.AnchorBadge
 import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.HashUtils
@@ -41,9 +37,6 @@ class MainActivity : AppCompatActivity() {
 
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
-
-    // Framed bitmap produced by the AnchorBadge flow — held until the user downloads it.
-    private var badgeFramedBitmap: Bitmap? = null
 
     // Requests CAMERA permission then opens CameraActivity.
     private val cameraPermissionLauncher = registerForActivityResult(
@@ -75,13 +68,6 @@ class MainActivity : AppCompatActivity() {
         if (uri != null) onPhotoPicked(uri)
     }
 
-    // Image picker launcher — opens the system gallery for the AnchorBadge flow.
-    private val badgePhotoPickerLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) onBadgePhotoPicked(uri)
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -102,8 +88,6 @@ class MainActivity : AppCompatActivity() {
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
-        binding.btnGenerateBadge.setOnClickListener { badgePhotoPickerLauncher.launch("image/*") }
-        binding.btnDownloadBadge.setOnClickListener { downloadBadge() }
         binding.btnSubscribe.setOnClickListener { onSubscribeClicked() }
         binding.btnUnsubscribe.setOnClickListener { onUnsubscribeClicked() }
 
@@ -282,117 +266,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
-    // AnchorBadge flow
-    // -------------------------------------------------------------------------
-
-    private fun onBadgePhotoPicked(uri: Uri) {
-        // Reset previous result state.
-        binding.tvBadgeStatus.visibility = View.GONE
-        binding.ivBadgePreview.visibility = View.GONE
-        binding.btnDownloadBadge.visibility = View.GONE
-        badgeFramedBitmap?.recycle()
-        badgeFramedBitmap = null
-
-        setLoading(true)
-
-        lifecycleScope.launch {
-            try {
-                val bytes = withContext(Dispatchers.IO) {
-                    contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw IllegalStateException("Could not read selected image")
-                }
-
-                val hash = withContext(Dispatchers.IO) { HashUtils.hashPhoto(bytes) }
-
-                val verifyResult = anchorkit.verify(hash)
-
-                // Block only if hash is completely unknown to the system.
-                val isPending = !verifyResult.verified && verifyResult.hash_id != null
-                if (!verifyResult.verified && !isPending) {
-                    binding.tvBadgeStatus.text = getString(R.string.anchor_badge_not_verified)
-                    binding.tvBadgeStatus.setTextColor(
-                        ContextCompat.getColor(this@MainActivity, R.color.error)
-                    )
-                    binding.tvBadgeStatus.visibility = View.VISIBLE
-                    return@launch
-                }
-
-                // Photo is known (verified or pending) — frame it using the public SDK API.
-                val framedBitmap = withContext(Dispatchers.IO) {
-                    val photo = PhotoResult(
-                        data = bytes,
-                        hash = hash,
-                        timestamp = System.currentTimeMillis(),
-                        width = 0,
-                        height = 0
-                    )
-                    AnchorBadge.create(this@MainActivity, photo)
-                }
-
-                badgeFramedBitmap = framedBitmap
-
-                binding.ivBadgePreview.setImageBitmap(framedBitmap)
-                binding.ivBadgePreview.visibility = View.VISIBLE
-                if (isPending) {
-                    binding.tvBadgeStatus.text = getString(R.string.anchor_badge_pending)
-                    binding.tvBadgeStatus.setTextColor(
-                        ContextCompat.getColor(this@MainActivity, R.color.warning)
-                    )
-                } else {
-                    binding.tvBadgeStatus.text = getString(R.string.anchor_badge_success)
-                    binding.tvBadgeStatus.setTextColor(
-                        ContextCompat.getColor(this@MainActivity, R.color.success)
-                    )
-                }
-                binding.tvBadgeStatus.visibility = View.VISIBLE
-                binding.btnDownloadBadge.visibility = View.VISIBLE
-
-            } catch (e: AnchorKitError.ApiError) {
-                binding.tvBadgeStatus.text = "Verification failed (${e.statusCode}): ${e.body}"
-                binding.tvBadgeStatus.setTextColor(
-                    ContextCompat.getColor(this@MainActivity, R.color.error)
-                )
-                binding.tvBadgeStatus.visibility = View.VISIBLE
-            } catch (e: AnchorKitError.NetworkError) {
-                binding.tvBadgeStatus.text = "Network error: ${e.message}"
-                binding.tvBadgeStatus.setTextColor(
-                    ContextCompat.getColor(this@MainActivity, R.color.error)
-                )
-                binding.tvBadgeStatus.visibility = View.VISIBLE
-            } catch (e: Exception) {
-                binding.tvBadgeStatus.text = "Error: ${e.message}"
-                binding.tvBadgeStatus.setTextColor(
-                    ContextCompat.getColor(this@MainActivity, R.color.error)
-                )
-                binding.tvBadgeStatus.visibility = View.VISIBLE
-            } finally {
-                setLoading(false)
-            }
-        }
-    }
-
-    private fun downloadBadge() {
-        val bitmap = badgeFramedBitmap ?: return
-        val filename = "AnchorBadge_${System.currentTimeMillis()}.jpg"
-        val values = ContentValues().apply {
-            put(MediaStore.Images.Media.DISPLAY_NAME, filename)
-            put(MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/AnchorKit")
-            }
-        }
-        val uri = contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-        if (uri != null) {
-            contentResolver.openOutputStream(uri)?.use { out ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-            }
-            Toast.makeText(this, "Saved to gallery", Toast.LENGTH_SHORT).show()
-        } else {
-            Toast.makeText(this, "Could not save image", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // -------------------------------------------------------------------------
     // Verify
     // -------------------------------------------------------------------------
 
@@ -556,7 +429,6 @@ class MainActivity : AppCompatActivity() {
         binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
         binding.btnCapture.isEnabled = !loading
         binding.btnPickPhoto.isEnabled = !loading
-        binding.btnGenerateBadge.isEnabled = !loading
         if (loading) binding.btnVerify.isEnabled = false
         else binding.btnVerify.isEnabled = pickedPhotoHash != null
     }
