@@ -186,12 +186,13 @@ object AnchorBadge {
         val qrSize = (stripH - 2 * vPad - scanTextSize - scanGap).toInt().coerceAtLeast(48)
         val border = (qrSize * 0.035f).toInt().coerceAtLeast(3)
 
-        // Anchor to bottom-right corner of the strip
-        val qrX = frameW - sidePad - qrSize
+        // Anchor to bottom-right corner of the strip, with extra inset so the QR
+        // and "SCAN TO VERIFY" label don't crowd the frame edge.
+        val qrX = frameW - (sidePad * 2.5f).toInt() - qrSize
         val qrY = (frameH - vPad - scanTextSize - scanGap).toInt() - qrSize
 
         // rightColX still defines the left-column boundary
-        val rightColX = (frameW * 0.60f).toInt()
+        val rightColX = (frameW * 0.65f).toInt()
 
         val qrBitmap = buildBrandedQr(url, qrSize, context)
 
