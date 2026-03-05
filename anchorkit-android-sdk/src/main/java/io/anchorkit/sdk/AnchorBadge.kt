@@ -142,7 +142,7 @@ object AnchorBadge {
         hash: String,
         deviceModel: String?
     ): Bitmap {
-        val url = "$VERIFY_BASE_URL/$hash"
+        val url = "$VERIFY_BASE_URL?hash=$hash"
 
         val photoW = photoBitmap.width
         val photoH = photoBitmap.height
@@ -170,7 +170,7 @@ object AnchorBadge {
             sidePad - half, topPad - half,
             sidePad + photoW + half, topPad + photoH + half,
             Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#8FAABB")
+                color = Color.parseColor("#1E3D6E")
                 style = Paint.Style.STROKE
                 strokeWidth = outlineSW
             }
@@ -183,16 +183,18 @@ object AnchorBadge {
         val scanTextSize = (stripH * 0.10f).coerceAtLeast(9f)
         val scanGap      = vPad * 0.5f
 
-        val qrY    = stripTop + vPad
         val qrSize = (stripH - 2 * vPad - scanTextSize - scanGap).toInt().coerceAtLeast(48)
+        val border = (qrSize * 0.035f).toInt().coerceAtLeast(3)
 
+        // Anchor to bottom-right corner of the strip
+        val qrX = frameW - sidePad - qrSize
+        val qrY = (frameH - vPad - scanTextSize - scanGap).toInt() - qrSize
+
+        // rightColX still defines the left-column boundary
         val rightColX = (frameW * 0.60f).toInt()
-        val rightColW = frameW - rightColX - sidePad
-        val qrX = rightColX + (rightColW - qrSize) / 2
 
         val qrBitmap = buildBrandedQr(url, qrSize, context)
 
-        val border = (qrSize * 0.035f).toInt().coerceAtLeast(3)
         canvas.drawRect(
             (qrX - border).toFloat(), (qrY - border).toFloat(),
             (qrX + qrSize + border).toFloat(), (qrY + qrSize + border).toFloat(),
@@ -211,7 +213,7 @@ object AnchorBadge {
         val scanLabelW = scanPaint.measureText(scanLabel)
         canvas.drawText(
             scanLabel,
-            rightColX + (rightColW - scanLabelW) / 2f,
+            qrX + (qrSize - scanLabelW) / 2f,
             qrY + qrSize + scanGap + scanTextSize,
             scanPaint
         )
@@ -220,36 +222,27 @@ object AnchorBadge {
 
         val leftColRight = rightColX - sidePad
 
-        val iconSize = (stripH * 0.42f).toInt().coerceAtLeast(32)
-        val iconX    = (sidePad * 1.5f).toInt()
-        val iconY    = stripTop + vPad
+        val logoMaxH = (stripH * 0.42f).toInt().coerceAtLeast(32)
+        val logoX    = (sidePad * 1.5f).toInt()
+        val logoMaxW = leftColRight - logoX - sidePad
 
-        val iconBitmap: Bitmap? = try {
-            val raw = BitmapFactory.decodeResource(context.resources, R.drawable.anchorkit_icon)
+        val logoBitmap: Bitmap? = try {
+            val raw = BitmapFactory.decodeResource(context.resources, R.drawable.anchorkit_logo)
             if (raw != null) {
-                val s = Bitmap.createScaledBitmap(raw, iconSize, iconSize, true)
+                val scale = (logoMaxH.toFloat() / raw.height).coerceAtMost(logoMaxW.toFloat() / raw.width)
+                val w = (raw.width * scale).toInt().coerceAtLeast(1)
+                val h = (raw.height * scale).toInt().coerceAtLeast(1)
+                val s = Bitmap.createScaledBitmap(raw, w, h, true)
                 if (s !== raw) raw.recycle()
                 s
             } else null
         } catch (_: Exception) { null }
 
-        if (iconBitmap != null) {
-            canvas.drawBitmap(iconBitmap, iconX.toFloat(), iconY.toFloat(), null)
-            iconBitmap.recycle()
+        if (logoBitmap != null) {
+            val logoY = stripTop + vPad + (logoMaxH - logoBitmap.height) / 2
+            canvas.drawBitmap(logoBitmap, logoX.toFloat(), logoY.toFloat(), null)
+            logoBitmap.recycle()
         }
-
-        val brandTextSize = (iconSize * 0.48f).coerceAtLeast(12f)
-        val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = COLOR_ORANGE
-            textSize = brandTextSize
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        }
-        val brandX = (iconX + iconSize).toFloat() + sidePad * 0.8f
-        val brandY = iconY + iconSize / 2f + brandTextSize / 3f
-        canvas.save()
-        canvas.clipRect(brandX, stripTop.toFloat(), leftColRight.toFloat(), frameH.toFloat())
-        canvas.drawText("AnchorKit", brandX, brandY, brandPaint)
-        canvas.restore()
 
         if (!deviceModel.isNullOrEmpty()) {
             val pillTextSize = (stripH * 0.115f).coerceAtLeast(10f) * 1.15f
@@ -265,12 +258,12 @@ object AnchorBadge {
             }
             val label     = "Captured on: $deviceModel"
             val labelW    = pillTextPaint.measureText(label)
-            val maxLabelW = (leftColRight - iconX).toFloat() - pillPadH - camSize - iconTextGap
+            val maxLabelW = (leftColRight - logoX).toFloat() - pillPadH - camSize - iconTextGap
             val pillW     = (2 * pillPadH + camSize + iconTextGap + labelW.coerceAtMost(maxLabelW))
             val pillH     = camSize.coerceAtLeast(pillTextSize) + 2 * pillPadV
 
-            val pillLeft = iconX.toFloat() - pillPadH
-            val pillTop  = iconY + iconSize + vPad * 0.75f
+            val pillLeft = logoX.toFloat() - pillPadH
+            val pillTop  = stripTop + vPad + logoMaxH + vPad * 0.75f
             val pillBot  = pillTop + pillH
 
             val cornerR = pillTextSize * 0.40f
