@@ -49,14 +49,6 @@
 > The demo app is rate-limited, for full usage of AnchorKit, you can register for a free API key and integrate it into your application.
 
 
-
-## AnchorBadges
-Optional scannable badge add-on to that links directly to your photo or video's verification.
-```Kotlin
-val badge: Bitmap = AnchorBadge.create(context, photo)
-```
-
-
 ## SiteBadges - Build Trust in Your Brand
 Display a verifiable badge on your site containing your site's AnchorKit statistics.
 

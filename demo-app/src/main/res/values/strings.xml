@@ -17,14 +17,6 @@
     <string name="result_empty">Results will appear here after submitting or verifying.</string>
     <string name="attestation_verified">Hardware Attestation: Verified</string>
 
-    <string name="anchor_badge_title">AnchorBadge</string>
-    <string name="anchor_badge_desc">Pick a photo you\'ve captured with AnchorKit to generate a shareable framed copy with a scannable QR code linking to its blockchain verification.</string>
-    <string name="btn_generate_badge">Pick Photo &amp; Generate Badge</string>
-    <string name="anchor_badge_success">Verification confirmed. Your framed photo is ready to download.</string>
-    <string name="anchor_badge_pending">Anchor pending — badge generated. QR links to live verification status.</string>
-    <string name="anchor_badge_not_verified">This photo has not been submitted to AnchorKit.</string>
-    <string name="btn_download_badge">Download Framed Photo</string>
-
     <string name="settings_title">Settings</string>
     <string name="nav_home">Home</string>
     <string name="nav_result">Result</string>
