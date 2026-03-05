@@ -1,4 +1,3 @@
-# AnchorKit — Your camera, under oath
 <p align="center">
   <img src="assets/anchorkit_logo.png" alt="AnchorKit" width="600"/>
 </p>
@@ -18,10 +17,11 @@
   <a href="#quick-start">Quick Start</a> •
   <a href="#installation">Installation</a> •
   <a href="#credits">Credits</a> •
-  <a href="#license">License</a>
+  <a href="#license">License</a> •
+  <a href="https://anchorkit.net">AnchorKit.net</a>
 </p>
 
-## How It Works
+## What It Does
 - AnchorKit integrates with your existing CameraX pipeline via a single API call — no camera rewrites required.
 - All media captured is hardware attested using **secure hardware enclave** (TEE), then sent to the backend.
 - Each night, submissions are aggregated into a daily Merkle tree, and the root hash is anchored to the Solana blockchain.
@@ -31,7 +31,7 @@
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
 =======
-## 📊 How It Compares
+## How It Compares
 | | AnchorKit | C2PA Standard | AI Detection |
 | --- | --- | --- | --- |
 | **What it proves** | "This  is a real photograph taken on real hardware at this time" | "This content was created or endorsed by the holder of this certificate at this time" | "This image may or may not have been AI-generated" |
@@ -43,15 +43,13 @@
 | **Decentralized** | Yes — anchored on public blockchain | No — centralized certificate infrastructure | No — model vendor dependency |
 | **If Compromised** | Only future pictures can be faked | All pictures can be faked | Detection degrades as generation models improve (arms race) |
 
-##  Anchor Demo
+## Anchor Demo
 - Insert GIF here - 
 > [!NOTE]
 > The demo app is rate-limited, for full usage of AnchorKit, you can register for a free API key and integrate it into your application.
 
 
-## 🚀 Quick Start
-
-## 🛡️ SiteBadges - Build Trust in Your Brand
+## SiteBadges - Build Trust in Your Brand
 Display a verifiable badge on your site containing your site's AnchorKit statistics.
 
 > [!CAUTION]
@@ -59,7 +57,7 @@ Display a verifiable badge on your site containing your site's AnchorKit statist
 > anyone can simply take a photo of another photo, and this is technically valid.
 > In this situation, supplmentary tools can be used to analyze the images for parallax, moire pattern, etc.
 
-## 🛠️ Photo Submission Pipeline
+## How It Works
 
 ```
      ANDROID DEVICE                ANCHORKIT API                SOLANA
