@@ -598,7 +598,7 @@ class MainActivity : AppCompatActivity() {
             text = displayValue
             textSize = 13f
             typeface = Typeface.MONOSPACE
-            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.accent))
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.primary))
             paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
