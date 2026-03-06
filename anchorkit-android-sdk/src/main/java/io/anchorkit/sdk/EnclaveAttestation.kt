@@ -12,7 +12,9 @@ import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.Signature
+import java.security.cert.X509Certificate
 import java.security.spec.ECGenParameterSpec
+import java.util.Date
 import java.util.UUID
 
 /**
@@ -135,7 +137,7 @@ object EnclaveAttestation {
         val keyExists = keyStore.containsAlias(KEY_ALIAS)
         val createdAt = prefs.getLong(PREF_KEY_CREATED_AT, 0L)
         val ageMs = System.currentTimeMillis() - createdAt
-        val expired = keyExists && ageMs > KEY_MAX_AGE_MS
+        val expired = keyExists && (ageMs > KEY_MAX_AGE_MS || hasCertChainExpired(keyStore))
 
         if (!keyExists || expired) {
             if (expired) {
@@ -147,6 +149,27 @@ object EnclaveAttestation {
             }
             generateKey(context)
             prefs.edit().putLong(PREF_KEY_CREATED_AT, System.currentTimeMillis()).apply()
+        }
+    }
+
+    /**
+     * Returns true if any certificate in the stored attestation chain has expired.
+     *
+     * This catches the case where a key is still within KEY_MAX_AGE_MS but the
+     * Google-issued intermediate CA certificate in its chain has since expired.
+     * Forcing regeneration gives the device a fresh chain signed by a current CA.
+     */
+    private fun hasCertChainExpired(keyStore: KeyStore): Boolean {
+        return try {
+            val chain = keyStore.getCertificateChain(KEY_ALIAS) ?: return false
+            val now = Date()
+            chain.any { cert ->
+                (cert as? X509Certificate)?.let {
+                    now.after(it.notAfter)
+                } ?: false
+            }
+        } catch (_: Exception) {
+            false
         }
     }
 
