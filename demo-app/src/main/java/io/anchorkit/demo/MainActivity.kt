@@ -299,9 +299,10 @@ class MainActivity : AppCompatActivity() {
                             add(Triple("Timestamp", tsFormatted, false))
                             if (!result.day.isNullOrEmpty()) add(Triple("Batch Day", result.day!!, false))
                             if (result.hash_id != null) add(Triple("Hash ID", result.hash_id.toString(), false))
-                            if (result.solana_tx != null) add(Triple("Solana TX", result.solana_tx!!, true))
                         },
-                        attestation = attestation
+                        attestation = attestation,
+                        explorerUrl = result.explorer_url,
+                        solanaTx = result.solana_tx,
                     )
 
                 } else {
@@ -467,6 +468,8 @@ class MainActivity : AppCompatActivity() {
         deviceModel: String? = null,
         dimensions: String? = null,
         footnote: String? = null,
+        solanaTx: String? = null,
+        explorerUrl: String? = null,
     ) {
         // Header
         binding.tvResultHeadline.text = headline
@@ -480,6 +483,14 @@ class MainActivity : AppCompatActivity() {
         binding.llResultFields.removeAllViews()
         for ((label, value, mono) in fields) {
             addFieldRow(label, value, mono)
+        }
+        if (solanaTx != null) {
+            val display = "${solanaTx.take(16)}…${solanaTx.takeLast(8)}"
+            if (explorerUrl != null) {
+                addLinkRow("Solana Transaction", display, explorerUrl)
+            } else {
+                addFieldRow("Solana Transaction", solanaTx, mono = true)
+            }
         }
         binding.llResultFields.visibility = View.VISIBLE
 
@@ -548,6 +559,59 @@ class MainActivity : AppCompatActivity() {
         binding.cardResult.visibility = View.VISIBLE
         binding.tvResultEmpty.visibility = View.GONE
         showTab(Tab.RESULT)
+    }
+
+    /** Appends a label-above-value row where the value is a tappable hyperlink. */
+    private fun addLinkRow(label: String, displayValue: String, url: String) {
+        val fields = binding.llResultFields
+        val density = resources.displayMetrics.density
+
+        if (fields.childCount > 0) {
+            val spacer = View(this)
+            spacer.layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, (10 * density).toInt()
+            )
+            fields.addView(spacer)
+        }
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val labelTv = TextView(this).apply {
+            text = label.uppercase(Locale.getDefault())
+            textSize = 10f
+            typeface = Typeface.DEFAULT
+            letterSpacing = 0.08f
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.text_secondary))
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, (2 * density).toInt()) }
+        }
+
+        val valueTv = TextView(this).apply {
+            text = displayValue
+            textSize = 13f
+            typeface = Typeface.MONOSPACE
+            setTextColor(ContextCompat.getColor(this@MainActivity, R.color.accent))
+            paintFlags = paintFlags or android.graphics.Paint.UNDERLINE_TEXT_FLAG
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener {
+                startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)))
+            }
+        }
+
+        row.addView(labelTv)
+        row.addView(valueTv)
+        fields.addView(row)
     }
 
     /** Appends a label-above-value row to the fields container. */
