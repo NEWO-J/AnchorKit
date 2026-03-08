@@ -30,7 +30,6 @@
 > [!NOTE]
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
-=======
 ## How It Compares
 | | AnchorKit | C2PA Standard | AI Detection |
 | --- | --- | --- | --- |
@@ -49,8 +48,8 @@
 > The demo app is rate-limited, for full usage of AnchorKit, you can register for a free API key and integrate it into your application.
 
 
-## SiteBadges - Build Trust in Your Brand
-Display a verifiable badge on your site containing your site's AnchorKit statistics.
+## ProofBundles - Zero Trust Verification
+<img src="assets/proofbundle.png" alt="AnchorKit" width="600"/>
 
 > [!CAUTION]
 > AnchorKit makes no verification that the **subject matter** of a photo is real,
