@@ -1,6 +1,7 @@
 package io.anchorkit.demo
 
 import android.Manifest
+import android.content.ContentValues
 import android.os.Build
 import android.app.Activity
 import android.content.Intent
@@ -8,6 +9,8 @@ import android.content.pm.PackageManager
 import android.content.res.ColorStateList
 import android.graphics.Typeface
 import android.net.Uri
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.View
 import android.os.Bundle
 import android.widget.LinearLayout
@@ -22,9 +25,13 @@ import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.HashUtils
 import io.anchorkit.sdk.PhotoResult
+import io.anchorkit.sdk.models.PortableProof
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -37,6 +44,9 @@ class MainActivity : AppCompatActivity() {
 
     // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
+
+    // Non-null only when the current result tab is showing a blockchain-verified result.
+    private var lastVerifiedHash: String? = null
 
     // Requests CAMERA permission then opens CameraActivity.
     private val cameraPermissionLauncher = registerForActivityResult(
@@ -88,6 +98,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
+        binding.btnDownloadProof.setOnClickListener { onDownloadProofClicked() }
         binding.btnSubscribe.setOnClickListener { onSubscribeClicked() }
         binding.btnUnsubscribe.setOnClickListener { onUnsubscribeClicked() }
 
@@ -231,6 +242,80 @@ class MainActivity : AppCompatActivity() {
         verifyHash(hash)
     }
 
+    private fun onDownloadProofClicked() {
+        val hash = lastVerifiedHash ?: return
+        binding.btnDownloadProof.isEnabled = false
+        lifecycleScope.launch {
+            try {
+                val proof = withContext(Dispatchers.IO) { anchorkit.downloadProof(hash) }
+                val json = portableProofToJson(proof)
+                saveProofFile(hash, json)
+            } catch (e: AnchorKitError.ApiError) {
+                Toast.makeText(this@MainActivity, "Download failed (${e.statusCode}): ${e.body}", Toast.LENGTH_LONG).show()
+            } catch (e: AnchorKitError.NetworkError) {
+                Toast.makeText(this@MainActivity, "Network error: ${e.message}", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(this@MainActivity, "Download failed: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                binding.btnDownloadProof.isEnabled = true
+            }
+        }
+    }
+
+    private suspend fun saveProofFile(hash: String, json: String) {
+        val filename = "anchorkit-proof-${hash.take(12)}.json"
+        withContext(Dispatchers.IO) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Downloads.DISPLAY_NAME, filename)
+                    put(MediaStore.Downloads.MIME_TYPE, "application/json")
+                    put(MediaStore.Downloads.IS_PENDING, 1)
+                }
+                val uri = contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+                    ?: throw Exception("Could not create file in Downloads")
+                contentResolver.openOutputStream(uri)?.use { it.write(json.toByteArray()) }
+                values.clear()
+                values.put(MediaStore.Downloads.IS_PENDING, 0)
+                contentResolver.update(uri, values, null, null)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Proof saved to Downloads/$filename", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+                    ?: filesDir
+                val file = File(dir, filename)
+                file.writeText(json)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, "Proof saved to ${file.absolutePath}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private fun portableProofToJson(proof: PortableProof): String {
+        val proofArray = JSONArray()
+        for (step in proof.merkle_proof) {
+            val stepArray = JSONArray()
+            for (v in step) stepArray.put(v)
+            proofArray.put(stepArray)
+        }
+        val obj = JSONObject().apply {
+            put("schema_version", proof.schema_version)
+            put("hash", proof.hash)
+            put("day", proof.day)
+            put("timestamp", proof.timestamp)
+            put("hash_id", proof.hash_id)
+            put("merkle_root", proof.merkle_root)
+            put("merkle_proof", proofArray)
+            put("solana_program", proof.solana_program)
+            if (proof.solana_registry_pda != null) put("solana_registry_pda", proof.solana_registry_pda)
+            if (proof.solana_chunk_index != null) put("solana_chunk_index", proof.solana_chunk_index)
+            if (proof.solana_tx != null) put("solana_tx", proof.solana_tx)
+            put("chain", proof.chain)
+        }
+        return obj.toString(2)
+    }
+
     // -------------------------------------------------------------------------
     // Photo picker result (verify flow only — no submission)
     // -------------------------------------------------------------------------
@@ -303,6 +388,7 @@ class MainActivity : AppCompatActivity() {
                         attestation = attestation,
                         explorerUrl = result.explorer_url,
                         solanaTx = result.solana_tx,
+                        downloadHash = hash,
                     )
 
                 } else {
@@ -442,6 +528,8 @@ class MainActivity : AppCompatActivity() {
         binding.llResultFields.visibility = View.GONE
         binding.llResultAttestation.visibility = View.GONE
         binding.tvResultNote.visibility = View.GONE
+        binding.btnDownloadProof.visibility = View.GONE
+        lastVerifiedHash = null
 
         binding.tvResult.text = text
         binding.tvResult.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
@@ -470,6 +558,7 @@ class MainActivity : AppCompatActivity() {
         footnote: String? = null,
         solanaTx: String? = null,
         explorerUrl: String? = null,
+        downloadHash: String? = null,
     ) {
         // Header
         binding.tvResultHeadline.text = headline
@@ -555,6 +644,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             binding.tvResultNote.visibility = View.GONE
         }
+
+        // Download proof bundle button — only for blockchain-verified results
+        lastVerifiedHash = downloadHash
+        binding.btnDownloadProof.visibility = if (downloadHash != null) View.VISIBLE else View.GONE
 
         binding.cardResult.visibility = View.VISIBLE
         binding.tvResultEmpty.visibility = View.GONE
