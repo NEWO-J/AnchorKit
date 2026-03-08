@@ -20,13 +20,14 @@ import java.security.MessageDigest
  *
  * Two independent checks are performed:
  *
- * 1. **Local Merkle math** — walks the proof path with SHA-256 and confirms
- *    the recomputed root equals [PortableProof.merkle_root].  No network call.
+ * 1. **On-chain root lookup** — derives the registry PDA from
+ *    [PortableProof.solana_program] + [PortableProof.solana_chunk_index], then
+ *    calls a public Solana JSON-RPC endpoint to read the Merkle root recorded
+ *    for [PortableProof.day].
  *
- * 2. **On-chain root lookup** — calls a public Solana JSON-RPC endpoint to
- *    read the [PortableProof.solana_registry_pda] account and finds the
- *    Merkle root recorded for [PortableProof.day]. Compares it to
- *    [PortableProof.merkle_root].
+ * 2. **Local Merkle math** — walks [PortableProof.merkle_proof] with SHA-256
+ *    from [PortableProof.hash] and confirms the computed root equals the
+ *    on-chain root.  No AnchorKit server is contacted.
  *
  * No AnchorKit server is contacted during either step.
  *
@@ -66,15 +67,13 @@ object SolanaVerifier {
     )
 
     /**
-     * Full three-step verification:
+     * Two-step verification:
      *
-     * 1. Local Merkle proof math (no network).
-     * 2. PDA integrity check — re-derive the expected registry account address
-     *    from [PortableProof.solana_program] + [PortableProof.solana_chunk_index]
-     *    and confirm it matches [PortableProof.solana_registry_pda].  This
-     *    prevents a tampered proof bundle from redirecting the on-chain lookup to
-     *    an attacker-controlled Solana account.
-     * 3. Direct Solana on-chain root lookup.
+     * 1. Derive the registry PDA from [PortableProof.solana_program] +
+     *    [PortableProof.solana_chunk_index] and fetch the Merkle root for
+     *    [PortableProof.day] from the on-chain account.
+     * 2. Walk [PortableProof.merkle_proof] from [PortableProof.hash] and confirm
+     *    the computed root equals the on-chain root.
      *
      * @param proof   A bundle previously obtained from [AnchorKitClient.downloadProof].
      * @param network Override the network; defaults to [PortableProof.chain].
@@ -84,75 +83,48 @@ object SolanaVerifier {
         network: String = proof.chain,
     ): LocalVerificationResult = withContext(Dispatchers.IO) {
 
-        // Step 1 — Merkle proof math (pure local, no network)
-        if (!verifyMerkleProof(proof.hash, proof.merkle_proof, proof.merkle_root)) {
-            return@withContext LocalVerificationResult(
-                valid = false,
-                reason = "Merkle proof math failed — the proof is inconsistent with the claimed root",
-            )
-        }
-
-        // Step 2 — PDA integrity: re-derive the expected account address from the
-        //           program ID and chunk index, then compare to the proof's claim.
-        //
-        //           Seed: ["merkle_registry", chunk_index as little-endian u16]
-        //           This is the same derivation used by the AnchorKit Solana program.
-        if (proof.solana_registry_pda.isNullOrBlank()) {
-            return@withContext LocalVerificationResult(
-                valid = false,
-                reason = "Proof bundle does not include solana_registry_pda — cannot perform on-chain lookup",
-            )
-        }
-
         if (proof.solana_chunk_index == null) {
             return@withContext LocalVerificationResult(
                 valid = false,
-                reason = "Proof bundle does not include solana_chunk_index — cannot verify PDA integrity",
+                reason = "Proof bundle does not include solana_chunk_index — cannot derive registry address",
             )
         }
 
-        val expectedPda = derivePda(proof.solana_program, proof.solana_chunk_index)
-        if (expectedPda == null) {
-            return@withContext LocalVerificationResult(
-                valid = false,
-                reason = "Failed to derive expected PDA from program ${proof.solana_program} " +
-                    "and chunk index ${proof.solana_chunk_index}",
-            )
-        }
-
-        if (expectedPda != proof.solana_registry_pda) {
-            return@withContext LocalVerificationResult(
-                valid = false,
-                reason = "PDA mismatch — proof claims ${proof.solana_registry_pda} but the " +
-                    "expected address derived from program + chunk index is $expectedPda. " +
-                    "The proof bundle may have been tampered with.",
-            )
-        }
-
-        // Step 3 — On-chain root lookup
+        // Step 1 — Derive PDA and fetch on-chain root
         val rpcUrl = SOLANA_RPCS[network]
             ?: return@withContext LocalVerificationResult(
                 valid = false,
                 reason = "Unknown network: $network",
             )
 
-        val chainRoot = fetchRootForDate(
-            pda = proof.solana_registry_pda,
+        val registryPda = derivePda(proof.solana_program, proof.solana_chunk_index)
+            ?: return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "Failed to derive registry PDA from program ${proof.solana_program} " +
+                    "and chunk index ${proof.solana_chunk_index}",
+            )
+
+        val onChainRoot = fetchRootForDate(
+            pda = registryPda,
             date = proof.day,
             rpcUrl = rpcUrl,
-        ) ?: return@withContext LocalVerificationResult(
-            valid = false,
-            reason = "Merkle root for ${proof.day} not found in on-chain registry account ${proof.solana_registry_pda}",
-        )
+        )?.removePrefix("0x")?.lowercase()
+            ?: return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "Merkle root for ${proof.day} not found in on-chain registry at $registryPda",
+            )
 
-        // Step 4 — Compare
-        val proofRoot = proof.merkle_root.removePrefix("0x").lowercase()
-        val onChainRoot = chainRoot.removePrefix("0x").lowercase()
+        // Step 2 — Walk the proof path and compare computed root to on-chain root
+        val computedRoot = computeMerkleRoot(proof.hash, proof.merkle_proof)
+            ?: return@withContext LocalVerificationResult(
+                valid = false,
+                reason = "Merkle proof is malformed",
+            )
 
-        if (proofRoot != onChainRoot) {
+        if (computedRoot != onChainRoot) {
             return@withContext LocalVerificationResult(
                 valid = false,
-                reason = "Root mismatch — proof claims $proofRoot but on-chain registry has $onChainRoot",
+                reason = "Root mismatch — proof computes $computedRoot but on-chain registry has $onChainRoot",
             )
         }
 
@@ -245,7 +217,7 @@ object SolanaVerifier {
     }
 
     /**
-     * Verify the Merkle proof path locally — no network required.
+     * Walk the Merkle proof path and return the computed root — no network required.
      *
      * Applies the same domain-separation scheme used by the server-side Rust
      * Merkle tree (RFC 6962 style):
@@ -258,23 +230,20 @@ object SolanaVerifier {
      *
      * @param leafHash SHA-256 hex hash of the image (lowercase, no 0x prefix).
      * @param proof    List of `[sibling_hash, "left"|"right"]` steps.
-     * @param root     Expected Merkle root (may carry "0x" prefix).
+     * @return Computed Merkle root as a lowercase hex string, or null if [proof] is malformed.
      */
-    fun verifyMerkleProof(
+    fun computeMerkleRoot(
         leafHash: String,
         proof: List<List<String>>,
-        root: String,
-    ): Boolean {
-        // Apply leaf domain tag first (matches hash_leaf in lib.rs).
+    ): String? {
         var current = hashLeaf(leafHash.lowercase())
         for (step in proof) {
-            if (step.size != 2) return false
+            if (step.size != 2) return null
             val sibling = step[0]
             val position = step[1]
-            // Apply internal node domain tag (matches hash_node in lib.rs).
             current = if (position == "left") hashNode(sibling, current) else hashNode(current, sibling)
         }
-        return current == root.lowercase().removePrefix("0x")
+        return current
     }
 
     // -------------------------------------------------------------------------
