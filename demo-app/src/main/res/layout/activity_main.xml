@@ -471,6 +471,20 @@
                             android:lineSpacingMultiplier="1.5"
                             android:visibility="gone" />
 
+                        <!-- Download proof bundle (shown only for blockchain-verified results) -->
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnDownloadProof"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/btn_download_proof"
+                            android:textAllCaps="false"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            app:cornerRadius="8dp"
+                            android:layout_marginStart="20dp"
+                            android:layout_marginEnd="20dp"
+                            android:layout_marginBottom="16dp"
+                            android:visibility="gone" />
+
                         <!-- Plain text fallback (used for errors and simple messages) -->
                         <TextView
                             android:id="@+id/tvResult"
