@@ -109,7 +109,7 @@ Display a verifiable badge on your site containing your site's AnchorKit statist
 
    AnchorKit.verify(hash)
               │
-              │  GET /verify/{hash}  (TLS + cert pinned)
+              │  GET /api/verify-hash/{hash}  (TLS + cert pinned)
               ├──────────────────────────────────────────────►
 
                               ┌──────────────────┐
