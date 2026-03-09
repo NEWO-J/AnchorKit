@@ -102,11 +102,11 @@ Three diagrams covering the full lifecycle of a photo in the AnchorKit system.
   └──────────────┬──────────────────┘
                  │
                  ▼
-  ┌─────────────────────────────────┐   RFC 6962 domain separation:
-  │        Build Merkle Tree        │   leaf  node = SHA-256( 0x00 ‖ hash )
-  │                                 │   inner node = SHA-256( 0x01 ‖ left ‖ right )
-  │            [ Root ]             │
-  │            /      \             │
+  ┌─────────────────────────────────┐   Merkle construction (no domain sep.):
+  │        Build Merkle Tree        │   leaf  node = hash (raw SHA-256 hex, used as-is)
+  │                                 │   inner node = SHA-256( left_hex ‖ right_hex )
+  │            [ Root ]             │     (string concat of hex values, then SHA-256)
+  │            /      \             │   odd-length levels: duplicate the final leaf
   │          N01      N23           │
   │          / \      / \           │
   │         h0  h1  h2  h3  …      │
