@@ -10,7 +10,7 @@
   <img alt="Platform" src="https://img.shields.io/badge/platform-Android-3DDC84?logo=android"/>
 </p>
 
-**AnchorKit** is a photo provenance SDK for Android (*With iOS to come*). It enables applications to distinguish real camera captures from AI-generated or manipulated media using hardware-backed cryptographic proofs.
+**AnchorKit** is a photo provenance SDK for Android (*with iOS support coming soon*). It enables applications to distinguish real camera captures from AI-generated or manipulated media using hardware-backed cryptographic proofs.
 <p align="center">
   <a href="#how-it-works">How It Works</a> •
   <a href="#anchor-demo">Demo</a> •
@@ -30,7 +30,6 @@
 > [!NOTE]
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
-=======
 ## How It Compares
 | | AnchorKit | C2PA Standard | AI Detection |
 | --- | --- | --- | --- |
@@ -49,8 +48,8 @@
 > The demo app is rate-limited, for full usage of AnchorKit, you can register for a free API key and integrate it into your application.
 
 
-## SiteBadges - Build Trust in Your Brand
-Display a verifiable badge on your site containing your site's AnchorKit statistics.
+## ProofBundles - Zero Trust Verification
+<img src="assets/proofbundle.png" alt="AnchorKit" width="600"/>
 
 > [!CAUTION]
 > AnchorKit makes no verification that the **subject matter** of a photo is real,
@@ -58,6 +57,8 @@ Display a verifiable badge on your site containing your site's AnchorKit statist
 > In this situation, supplmentary tools can be used to analyze the images for parallax, moire pattern, etc.
 
 ## How It Works
+<img src="assets/howitworks1.png" alt="How It Works" width="500"/>
+<img src="assets/howitworks2.png" alt="How It Works" width="900"/>
 
 ```
      ANDROID DEVICE                ANCHORKIT API                SOLANA
