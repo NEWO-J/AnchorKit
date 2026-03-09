@@ -275,69 +275,65 @@ class CameraActivity : AppCompatActivity() {
             return
         }
 
-        val capture = imageCapture ?: run {
-            returnError("Camera not ready — please wait a moment and try again.")
-            return
-        }
-
         setControlsEnabled(false)
 
-        // Call takePicture() on the already-bound use case — the shutter fires
-        // immediately with no camera re-initialisation delay.
-        capture.takePicture(
-            ContextCompat.getMainExecutor(this),
-            object : ImageCapture.OnImageCapturedCallback() {
-                override fun onCaptureSuccess(image: ImageProxy) {
-                    val buffer = image.planes[0].buffer
-                    val photoData = ByteArray(buffer.remaining())
-                    buffer.get(photoData)
-                    val width = image.width
-                    val height = image.height
-                    image.close()
+        // Use the SDK's capturePhoto() so the hash is always computed inside the SDK
+        // from camera-captured bytes.  The SDK's PhotoResult has an internal constructor —
+        // the hash it carries cannot be replaced with an arbitrary value by the caller.
+        //
+        // capturePhoto() will unbind and rebind the camera briefly; this is acceptable
+        // because the user has already tapped the shutter and the preview is ending.
+        lifecycleScope.launch {
+            try {
+                val photo = anchorkit.capturePhoto(
+                    lifecycleOwner = this@CameraActivity,
+                    lensFacing = lensFacing,
+                    flashMode = if (isFlashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
+                )
 
-                    val hash = sha256Hex(photoData)
-                    val timestamp = System.currentTimeMillis()
-
-                    lifecycleScope.launch {
-                        val saved = withContext(Dispatchers.IO) {
-                            savePhotoToGallery(photoData, timestamp)
-                        }
-                        if (!saved) {
-                            returnError(
-                                "Storage permission is required to save the photo to your gallery.\n\n" +
-                                    "Please grant the storage permission and try again."
-                            )
-                            return@launch
-                        }
-
-                        // Return immediately — attestation signing and API submission
-                        // are handled by MainActivity on the Result tab.
-                        val intent = Intent().apply {
-                            putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_PHOTO)
-                            putExtra(EXTRA_HASH, hash)
-                            putExtra(EXTRA_TIMESTAMP_MS, timestamp)
-                            putExtra(EXTRA_PHOTO_WIDTH, width)
-                            putExtra(EXTRA_PHOTO_HEIGHT, height)
-                            putExtra(EXTRA_SUBMISSION_PENDING, true)
-                        }
-                        setResult(Activity.RESULT_OK, intent)
-                        finish()
-                    }
+                val saved = withContext(Dispatchers.IO) {
+                    savePhotoToGallery(photo.data, photo.timestamp)
+                }
+                if (!saved) {
+                    returnError(
+                        "Storage permission is required to save the photo to your gallery.\n\n" +
+                            "Please grant the storage permission and try again."
+                    )
+                    return@launch
                 }
 
-                override fun onError(exception: ImageCaptureException) {
-                    lifecycleScope.launch {
-                        returnError("Capture error: ${exception.message}")
-                    }
+                // Sign and submit within this Activity — the hash never leaves the SDK's
+                // control as a plain String before the signature is produced.
+                val receipt = anchorkit.submitPhoto(photo)
+
+                val intent = Intent().apply {
+                    putExtra(EXTRA_MEDIA_TYPE, MEDIA_TYPE_PHOTO)
+                    putExtra(EXTRA_HASH, photo.hash)
+                    putExtra(EXTRA_TIMESTAMP_MS, photo.timestamp)
+                    putExtra(EXTRA_RECEIPT_DAY, receipt.day)
+                    putExtra(EXTRA_RECEIPT_HASH_ID, receipt.hash_id)
+                    putExtra(EXTRA_RECEIPT_TABLE, receipt.table)
+                    receipt.timestamp?.let { putExtra(EXTRA_RECEIPT_TIMESTAMP, it) }
+                    putExtra(EXTRA_ATTESTATION_VERIFIED, receipt.attestation_verified ?: false)
+                    putExtra(EXTRA_CERT_FINGERPRINT, receipt.cert_fingerprint)
+                    putExtra(EXTRA_CERT_VALID_FROM, receipt.cert_valid_from)
+                    putExtra(EXTRA_CERT_VALID_UNTIL, receipt.cert_valid_until)
                 }
+                setResult(Activity.RESULT_OK, intent)
+                finish()
+
+            } catch (e: AnchorKitError.DeviceIntegrityError) {
+                returnError("Device integrity check failed: ${e.message}")
+            } catch (e: AnchorKitError.AttestationError) {
+                returnError("Attestation error: ${e.message}")
+            } catch (e: AnchorKitError.NetworkError) {
+                returnError("Network error: ${e.message}\n\nCheck your internet connection.")
+            } catch (e: AnchorKitError.ApiError) {
+                returnError("API error ${e.statusCode}: ${e.body}")
+            } catch (e: Exception) {
+                returnError("Unexpected error: ${e.message}")
             }
-        )
-    }
-
-    /** SHA-256 hex digest of [data], matching the hash computed in the SDK. */
-    private fun sha256Hex(data: ByteArray): String {
-        val md = java.security.MessageDigest.getInstance("SHA-256")
-        return md.digest(data).joinToString("") { "%02x".format(it) }
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -553,11 +549,7 @@ class CameraActivity : AppCompatActivity() {
         const val EXTRA_HASH = "hash"
         const val EXTRA_TIMESTAMP_MS = "timestamp_ms"
         const val EXTRA_VIDEO_DURATION_MS = "video_duration_ms"
-        // Photo-only: passed when submission is deferred to MainActivity
-        const val EXTRA_PHOTO_WIDTH = "photo_width"
-        const val EXTRA_PHOTO_HEIGHT = "photo_height"
-        const val EXTRA_SUBMISSION_PENDING = "submission_pending"
-        // Video/legacy photo: receipt fields populated before returning
+        // Receipt fields — populated before returning for both photo and video
         const val EXTRA_RECEIPT_DAY = "receipt_day"
         const val EXTRA_RECEIPT_HASH_ID = "receipt_hash_id"
         const val EXTRA_RECEIPT_TABLE = "receipt_table"
