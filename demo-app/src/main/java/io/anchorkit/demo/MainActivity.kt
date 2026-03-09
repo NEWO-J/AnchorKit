@@ -243,16 +243,24 @@ class MainActivity : AppCompatActivity() {
             for (v in step) stepArray.put(v)
             proofArray.put(stepArray)
         }
+        // Compute derived fields that are not stored in PortableProof but are useful
+        // to include in the exported JSON for human inspection and third-party verification.
+        val computedMerkleRoot = io.anchorkit.sdk.SolanaVerifier.computeMerkleRoot(
+            proof.hash, proof.merkle_proof
+        )
+        val computedRegistryPda = proof.solana_chunk_index?.let {
+            io.anchorkit.sdk.SolanaVerifier.derivePda(proof.solana_program, it)
+        }
         val obj = JSONObject().apply {
             put("schema_version", proof.schema_version)
             put("hash", proof.hash)
             put("day", proof.day)
             put("timestamp", proof.timestamp)
             put("hash_id", proof.hash_id)
-            put("merkle_root", proof.merkle_root)
+            if (computedMerkleRoot != null) put("merkle_root", computedMerkleRoot)
             put("merkle_proof", proofArray)
             put("solana_program", proof.solana_program)
-            if (proof.solana_registry_pda != null) put("solana_registry_pda", proof.solana_registry_pda)
+            if (computedRegistryPda != null) put("solana_registry_pda", computedRegistryPda)
             if (proof.solana_chunk_index != null) put("solana_chunk_index", proof.solana_chunk_index)
             if (proof.solana_tx != null) put("solana_tx", proof.solana_tx)
             put("chain", proof.chain)
