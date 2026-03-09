@@ -144,7 +144,7 @@ object SolanaVerifier {
      *
      * The derivation uses the standard Solana find_program_address algorithm:
      * try bump 255 down to 0; for each bump compute
-     * SHA256("ProgramDerivedAddress" || seeds... || bump_byte || program_id)
+     * SHA256(seed0 || seed1 || ... || bump_byte || program_id || "ProgramDerivedAddress")
      * and return the first result that is NOT a valid Ed25519 point.
      *
      * @return Base-58 PDA string, or null if derivation fails.
@@ -165,7 +165,7 @@ object SolanaVerifier {
 
     /**
      * Solana find_program_address: iterate bump from 255 down to 0, computing
-     * SHA256("ProgramDerivedAddress" || seed0 || seed1 || ... || bump || programId)
+     * SHA256(seed0 || seed1 || ... || bump || programId || "ProgramDerivedAddress")
      * for each bump, and return the first result that is not a valid curve point.
      */
     private fun findProgramAddress(seeds: List<ByteArray>, programId: ByteArray): String? {
@@ -198,20 +198,29 @@ object SolanaVerifier {
         if (point.size != 32) return false
         // Ed25519 field prime p = 2^255 - 19
         val p = java.math.BigInteger.TWO.pow(255).subtract(java.math.BigInteger.valueOf(19))
+        // Standard Ed25519 d constant = -121665/121666 mod p
+        // Source: RFC 8032, Section 5.1 — hex 5206...78a3
         val d = java.math.BigInteger(
-            "-4513249062541557337682894930092624173785641285191125241628941591882900924598840740",
+            "37095705934669439343138083508754565189542113879843219016388785533085940283555",
             10
         )
-        // Decode little-endian y coordinate (clear sign bit)
+        // Decode little-endian y coordinate; bit 255 (MSB of byte 31) is the sign bit of x
         val yBytes = point.copyOf()
         yBytes[31] = (yBytes[31].toInt() and 0x7F).toByte()
         val y = java.math.BigInteger(1, yBytes.reversedArray())
+        // y must be a valid field element
+        if (y >= p) return false
         val y2 = y.multiply(y).mod(p)
+        // Twisted Edwards curve: -x² + y² = 1 + d·x²·y²
+        // Rearranging: x² = (y² - 1) / (d·y² + 1) mod p
         val num = y2.subtract(java.math.BigInteger.ONE).mod(p)
         val den = d.multiply(y2).add(java.math.BigInteger.ONE).mod(p)
+        if (den == java.math.BigInteger.ZERO) return true  // degenerate case
         val denInv = den.modPow(p.subtract(java.math.BigInteger.TWO), p)
         val x2 = num.multiply(denInv).mod(p)
-        // x² has a square root mod p iff x²^((p-1)/2) ≡ 1 (mod p)
+        // x = 0 is a valid solution (x² = 0 has a root)
+        if (x2 == java.math.BigInteger.ZERO) return true
+        // x² has a square root mod p iff x²^((p-1)/2) ≡ 1 (mod p) (Euler's criterion)
         val exp = p.subtract(java.math.BigInteger.ONE).divide(java.math.BigInteger.TWO)
         return x2.modPow(exp, p) == java.math.BigInteger.ONE
     }
