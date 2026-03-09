@@ -38,6 +38,7 @@ class AnchorKit(
      */
     suspend fun captureAndSubmit(
         lifecycleOwner: LifecycleOwner,
+        lensFacing: Int = CameraSelector.LENS_FACING_BACK,
         flashMode: Int = ImageCapture.FLASH_MODE_OFF
     ): CaptureResult {
         // Reject devices that show signs of being rooted or having an unlocked
@@ -51,7 +52,7 @@ class AnchorKit(
             )
         }
 
-        val photo = photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+        val photo = photoCapture.capturePhoto(lifecycleOwner, lensFacing = lensFacing, flashMode = flashMode)
 
         // Fetch a fresh server-issued nonce immediately before signing.
         // The nonce is bound into the signed payload so the attestation cannot
@@ -177,6 +178,7 @@ class AnchorKit(
      */
     suspend fun capturePhoto(
         lifecycleOwner: LifecycleOwner,
+        lensFacing: Int = CameraSelector.LENS_FACING_BACK,
         flashMode: Int = ImageCapture.FLASH_MODE_OFF
     ): PhotoResult {
         DeviceIntegrity.check()?.let { reason ->
@@ -185,41 +187,39 @@ class AnchorKit(
                 "Attested submissions require an unmodified device with a locked bootloader."
             )
         }
-        return photoCapture.capturePhoto(lifecycleOwner, flashMode = flashMode)
+        return photoCapture.capturePhoto(lifecycleOwner, lensFacing = lensFacing, flashMode = flashMode)
     }
 
     /**
-     * Sign and submit a previously-captured photo hash to the AnchorKit API.
+     * Sign and submit a [PhotoResult] previously obtained from [capturePhoto].
      *
      * Fetches a server nonce, signs the hash + metadata with the device's
      * hardware-backed attestation key, and submits the result.
-     * Intended to be called after [capturePhoto] — typically from a background
-     * coroutine on the result screen rather than from inside the camera Activity.
+     * Intended to be called after [capturePhoto] — typically from a coroutine
+     * in the same Activity immediately after the gallery save, before returning
+     * to the caller.
      *
-     * @param hash    SHA-256 hash returned by [capturePhoto]
-     * @param timestamp Capture timestamp in milliseconds returned by [capturePhoto]
-     * @param width   Image width in pixels returned by [capturePhoto]
-     * @param height  Image height in pixels returned by [capturePhoto]
+     * [PhotoResult] has an internal constructor and can only be produced by
+     * [capturePhoto] (or [captureAndSubmit]).  This prevents callers from
+     * injecting an arbitrary hash — the hash submitted is always the one
+     * computed directly from the camera-captured bytes.
+     *
+     * @param photo [PhotoResult] returned by [capturePhoto]
      *
      * @throws AnchorKitError.AttestationError if hardware signing fails
      * @throws AnchorKitError.NetworkError on connectivity failures
      * @throws AnchorKitError.ApiError on non-2xx API responses
      */
-    suspend fun submitPhoto(
-        hash: String,
-        timestamp: Long,
-        width: Int,
-        height: Int
-    ): VerificationReceipt {
+    suspend fun submitPhoto(photo: PhotoResult): VerificationReceipt {
         val challenge = client.fetchChallenge()
         val metadata = mapOf(
-            "timestamp" to timestamp.toString(),
-            "dimensions" to "${width}x${height}",
+            "timestamp" to photo.timestamp.toString(),
+            "dimensions" to "${photo.width}x${photo.height}",
             "platform" to "android"
         )
-        val attestation = EnclaveAttestation.sign(hash, challenge.nonce, metadata, context)
+        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, metadata, context)
         return client.submitHash(
-            hash = hash,
+            hash = photo.hash,
             nonce = challenge.nonce,
             enclaveSignature = attestation.enclaveSignature,
             deviceAttestation = attestation.deviceAttestation,

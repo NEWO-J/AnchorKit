@@ -24,7 +24,6 @@ import io.anchorkit.demo.databinding.ActivityMainBinding
 import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.HashUtils
-import io.anchorkit.sdk.PhotoResult
 import io.anchorkit.sdk.models.PortableProof
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -141,62 +140,7 @@ class MainActivity : AppCompatActivity() {
         val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
         val capturedAt = captureTimeFmt.format(Date(timestampMs))
 
-        if (!isVideo && data.getBooleanExtra(CameraActivity.EXTRA_SUBMISSION_PENDING, false)) {
-            // ── Photo fast-path: camera closed immediately, submit from here ──
-            val width = data.getIntExtra(CameraActivity.EXTRA_PHOTO_WIDTH, 0)
-            val height = data.getIntExtra(CameraActivity.EXTRA_PHOTO_HEIGHT, 0)
-
-            showTab(Tab.RESULT)
-            setLoading(true)
-            showResult("")
-
-            lifecycleScope.launch {
-                try {
-                    val receipt = anchorkit.submitPhoto(hash, timestampMs, width, height)
-
-                    val receiptTs = receipt.timestamp
-                    val receivedAt = if (receiptTs != null && receiptTs > 0)
-                        serverTimeFmt.format(Date(receiptTs * 1000L))
-                    else capturedAt
-
-                    showStructuredResult(
-                        headline = "Photo Submitted",
-                        headlineColor = ContextCompat.getColor(this@MainActivity, R.color.success),
-                        iconRes = R.drawable.ic_check_circle,
-                        fields = buildList {
-                            add(Triple("Hash", hash, true))
-                            add(Triple("Captured", capturedAt, false))
-                            add(Triple("Received", receivedAt, false))
-                            add(Triple("Batch Day", receipt.day, false))
-                            add(Triple("Hash ID", receipt.hash_id.toString(), false))
-                            add(Triple("Table", receipt.table, false))
-                        },
-                        attestation = if (receipt.attestation_verified == true) Triple(
-                            receipt.cert_fingerprint,
-                            receipt.cert_valid_from?.take(10),
-                            receipt.cert_valid_until?.take(10)
-                        ) else null,
-                        bootloaderLocked = if (receipt.attestation_verified == true) true else null,
-                        deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
-                        dimensions = if (width > 0 && height > 0) "${width} × ${height} px" else null,
-                        footnote = "Hash will be anchored to the Solana blockchain tonight."
-                    )
-                } catch (e: AnchorKitError.AttestationError) {
-                    showResult("Attestation error: ${e.message}\n\nThis device may not support hardware-backed keys.")
-                } catch (e: AnchorKitError.ApiError) {
-                    showResult("Submission failed — API error ${e.statusCode}: ${e.body}")
-                } catch (e: AnchorKitError.NetworkError) {
-                    showResult("Submission failed — Network error: ${e.message}")
-                } catch (e: Exception) {
-                    showResult("Submission failed — Unexpected error: ${e.message}")
-                } finally {
-                    setLoading(false)
-                }
-            }
-            return
-        }
-
-        // ── Video (or legacy photo): receipt data is already in the Intent ──
+        // ── Receipt data is always present in the Intent for both photo and video ──
         val durationMs = data.getLongExtra(CameraActivity.EXTRA_VIDEO_DURATION_MS, 0L)
         val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
         val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
