@@ -57,8 +57,8 @@
 > In this situation, supplmentary tools can be used to analyze the images for parallax, moire pattern, etc.
 
 ## How It Works
-<img src="assets/howitworks1.png" alt="How It Works" width="500"/>
-<img src="assets/howitworks2.png" alt="How It Works" width="900"/>
+<img src="assets/howitworks1.png" alt="How It Works" width="800"/>
+<img src="assets/howitworks2.png" alt="How It Works" width="800"/>
 
 
 > [!IMPORTANT]
