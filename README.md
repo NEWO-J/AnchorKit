@@ -54,6 +54,7 @@
 > [!CAUTION]
 > AnchorKit makes no verification that the **subject matter** of a photo is real,
 > anyone can simply take a photo of another photo, and this is technically valid.
+> Videos are much more resillient to this attack, this is where AnchorKit excels.
 > In this situation, supplmentary tools can be used to analyze the images for parallax, moire pattern, etc.
 
 ## How It Works
