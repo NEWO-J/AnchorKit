@@ -276,6 +276,15 @@
                                 android:textStyle="bold"
                                 android:textColor="@color/text_primary" />
 
+                            <ImageView
+                                android:id="@+id/ivSolanaLogo"
+                                android:layout_width="18dp"
+                                android:layout_height="14dp"
+                                android:src="@drawable/ic_solana"
+                                android:layout_marginStart="8dp"
+                                android:contentDescription="Solana"
+                                android:visibility="gone" />
+
                         </LinearLayout>
 
                         <!-- Thin divider between header and fields -->
