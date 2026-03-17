@@ -481,6 +481,7 @@ class MainActivity : AppCompatActivity() {
         binding.llResultAttestation.visibility = View.GONE
         binding.tvResultNote.visibility = View.GONE
         binding.btnDownloadProof.visibility = View.GONE
+        binding.ivSolanaLogo.visibility = View.GONE
         lastVerifiedHash = null
 
         binding.tvResult.text = text
@@ -517,6 +518,7 @@ class MainActivity : AppCompatActivity() {
         binding.tvResultHeadline.setTextColor(headlineColor)
         binding.ivResultIcon.setImageResource(iconRes)
         binding.ivResultIcon.imageTintList = ColorStateList.valueOf(headlineColor)
+        binding.ivSolanaLogo.visibility = if (downloadHash != null) View.VISIBLE else View.GONE
         binding.llResultHeader.visibility = View.VISIBLE
         binding.vResultDivider.visibility = View.VISIBLE
 
