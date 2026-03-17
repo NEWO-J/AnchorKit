@@ -47,6 +47,9 @@ class MainActivity : AppCompatActivity() {
     // Non-null only when the current result tab is showing a blockchain-verified result.
     private var lastVerifiedHash: String? = null
 
+    // Full verification result retained so the download bundle can include attestation fields.
+    private var lastVerificationResult: io.anchorkit.sdk.models.VerificationResult? = null
+
     // Requests CAMERA permission then opens CameraActivity.
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -251,9 +254,14 @@ class MainActivity : AppCompatActivity() {
         val computedRegistryPda = proof.solana_chunk_index?.let {
             io.anchorkit.sdk.SolanaVerifier.derivePda(proof.solana_program, it)
         }
+        val verifyResult = lastVerificationResult
         val obj = JSONObject().apply {
+            put("generated", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).also {
+                it.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            }.format(java.util.Date()))
             put("schema_version", proof.schema_version)
             put("hash", proof.hash)
+            put("verified", true)
             put("day", proof.day)
             put("timestamp", proof.timestamp)
             put("hash_id", proof.hash_id)
@@ -264,6 +272,11 @@ class MainActivity : AppCompatActivity() {
             if (proof.solana_chunk_index != null) put("solana_chunk_index", proof.solana_chunk_index)
             if (proof.solana_tx != null) put("solana_tx", proof.solana_tx)
             put("chain", proof.chain)
+            // Hardware attestation fields from the verification response
+            if (verifyResult?.attestation_verified != null) put("attestation_verified", verifyResult.attestation_verified)
+            if (!verifyResult?.cert_fingerprint.isNullOrEmpty()) put("cert_fingerprint", verifyResult!!.cert_fingerprint)
+            if (!verifyResult?.cert_valid_from.isNullOrEmpty()) put("cert_valid_from", verifyResult!!.cert_valid_from)
+            if (!verifyResult?.cert_valid_until.isNullOrEmpty()) put("cert_valid_until", verifyResult!!.cert_valid_until)
         }
         return obj.toString(2)
     }
@@ -322,22 +335,40 @@ class MainActivity : AppCompatActivity() {
                 ) else null
 
                 if (result.verified) {
+                    lastVerificationResult = result
                     val tsMillis = result.timestamp?.let { it * 1000L }
                     val tsFormatted = tsMillis?.let {
                         SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault()).format(Date(it))
                     } ?: "—"
 
                     showStructuredResult(
-                        headline = "Verified on Blockchain",
+                        headline = "Verified & Anchored on Solana",
                         headlineColor = ContextCompat.getColor(this@MainActivity, R.color.success),
                         iconRes = R.drawable.ic_check_circle,
                         fields = buildList {
-                            add(Triple("Hash", result.hash, true))
+                            add(Triple("SHA-256 Hash", result.hash, true))
+                            if (!result.day.isNullOrEmpty()) add(Triple("Date Submitted", result.day!!, false))
                             add(Triple("Timestamp", tsFormatted, false))
-                            if (!result.day.isNullOrEmpty()) add(Triple("Batch Day", result.day!!, false))
-                            if (result.hash_id != null) add(Triple("Hash ID", result.hash_id.toString(), false))
+                            if (result.hash_id != null) add(Triple("Position in Daily Batch", "#${result.hash_id}", false))
+                            if (result.attestation_verified != null) add(Triple(
+                                "Hardware Attestation",
+                                if (result.attestation_verified == true) "Verified (Android Secure Enclave)" else "Not verified",
+                                false
+                            ))
+                            if (!result.cert_fingerprint.isNullOrEmpty()) add(Triple(
+                                "Device Cert Fingerprint",
+                                "${result.cert_fingerprint!!.take(16)}…${result.cert_fingerprint!!.takeLast(8)}",
+                                true
+                            ))
+                            if (result.cert_valid_from != null && result.cert_valid_until != null) add(Triple(
+                                "Cert Validity",
+                                "${result.cert_valid_from!!.take(10)} → ${result.cert_valid_until!!.take(10)}",
+                                false
+                            ))
+                            val merkleSize = result.merkle_proof?.size ?: 0
+                            if (merkleSize > 0) add(Triple("Merkle Proof", "$merkleSize sibling nodes", false))
                         },
-                        attestation = attestation,
+                        attestation = null,
                         explorerUrl = result.explorer_url,
                         solanaTx = result.solana_tx,
                         downloadHash = hash,
@@ -353,17 +384,32 @@ class MainActivity : AppCompatActivity() {
                         }
 
                         showStructuredResult(
-                            headline = "Recorded — Pending Anchor",
+                            headline = "Recorded — Awaiting Blockchain Anchor",
                             headlineColor = ContextCompat.getColor(this@MainActivity, R.color.warning),
                             iconRes = R.drawable.ic_hourglass,
                             fields = buildList {
-                                add(Triple("Hash", result.hash, true))
-                                if (!result.day.isNullOrEmpty()) add(Triple("Batch Day", result.day!!, false))
-                                if (result.hash_id != null) add(Triple("Hash ID", result.hash_id.toString(), false))
-                                if (tsFormatted != null) add(Triple("Recorded", tsFormatted, false))
+                                add(Triple("SHA-256 Hash", result.hash, true))
+                                if (!result.day.isNullOrEmpty()) add(Triple("Date Submitted", result.day!!, false))
+                                if (result.hash_id != null) add(Triple("Position in Daily Batch", "#${result.hash_id}", false))
+                                if (tsFormatted != null) add(Triple("Timestamp", tsFormatted, false))
+                                if (result.attestation_verified != null) add(Triple(
+                                    "Hardware Attestation",
+                                    if (result.attestation_verified == true) "Verified (Android Secure Enclave)" else "Not verified",
+                                    false
+                                ))
+                                if (!result.cert_fingerprint.isNullOrEmpty()) add(Triple(
+                                    "Device Cert Fingerprint",
+                                    "${result.cert_fingerprint!!.take(16)}…${result.cert_fingerprint!!.takeLast(8)}",
+                                    true
+                                ))
+                                if (result.cert_valid_from != null && result.cert_valid_until != null) add(Triple(
+                                    "Cert Validity",
+                                    "${result.cert_valid_from!!.take(10)} → ${result.cert_valid_until!!.take(10)}",
+                                    false
+                                ))
                             },
-                            attestation = attestation,
-                            footnote = "Blockchain anchor is pending — check back tomorrow."
+                            attestation = null,
+                            footnote = result.message ?: "This file has been recorded and hardware-verified. The blockchain anchor runs nightly at midnight UTC."
                         )
                     } else {
                         showResult(result.message ?: "Hash not found.")
@@ -483,6 +529,7 @@ class MainActivity : AppCompatActivity() {
         binding.btnDownloadProof.visibility = View.GONE
         binding.ivSolanaLogo.visibility = View.GONE
         lastVerifiedHash = null
+        lastVerificationResult = null
 
         binding.tvResult.text = text
         binding.tvResult.visibility = if (text.isNotEmpty()) View.VISIBLE else View.GONE
