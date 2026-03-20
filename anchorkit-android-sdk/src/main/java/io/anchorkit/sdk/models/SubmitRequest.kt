@@ -9,7 +9,6 @@ data class SubmitRequest(
     val nonce: String,
     val enclave_signature: String,
     val device_attestation: String,
-    val timestamp: Long = System.currentTimeMillis(),
     val metadata: Map<String, String> = emptyMap()
 )
 
