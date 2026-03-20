@@ -165,11 +165,7 @@ class AnchorKit(
      * Capture a photo from the device camera. No network calls are made.
      *
      * Returns the raw image bytes, SHA-256 hash, and capture metadata.
-     * To complete an attested submission, pass the returned values to [submitPhoto].
-     *
-     * Splitting capture from submission lets the calling Activity finish
-     * immediately after the shutter fires and delegate the network round-trip to
-     * a background context (e.g. the main screen's Result tab).
+     * To capture and submit in one step, use [captureAndSubmit] instead.
      *
      * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
      * before invoking this function.
@@ -188,43 +184,6 @@ class AnchorKit(
             )
         }
         return photoCapture.capturePhoto(lifecycleOwner, lensFacing = lensFacing, flashMode = flashMode)
-    }
-
-    /**
-     * Sign and submit a [PhotoResult] previously obtained from [capturePhoto].
-     *
-     * Fetches a server nonce, signs the hash + metadata with the device's
-     * hardware-backed attestation key, and submits the result.
-     * Intended to be called after [capturePhoto] — typically from a coroutine
-     * in the same Activity immediately after the gallery save, before returning
-     * to the caller.
-     *
-     * [PhotoResult] has an internal constructor and can only be produced by
-     * [capturePhoto] (or [captureAndSubmit]).  This prevents callers from
-     * injecting an arbitrary hash — the hash submitted is always the one
-     * computed directly from the camera-captured bytes.
-     *
-     * @param photo [PhotoResult] returned by [capturePhoto]
-     *
-     * @throws AnchorKitError.AttestationError if hardware signing fails
-     * @throws AnchorKitError.NetworkError on connectivity failures
-     * @throws AnchorKitError.ApiError on non-2xx API responses
-     */
-    suspend fun submitPhoto(photo: PhotoResult): VerificationReceipt {
-        val challenge = client.fetchChallenge()
-        val metadata = mapOf(
-            "timestamp" to photo.timestamp.toString(),
-            "dimensions" to "${photo.width}x${photo.height}",
-            "platform" to "android"
-        )
-        val attestation = EnclaveAttestation.sign(photo.hash, challenge.nonce, metadata, context)
-        return client.submitHash(
-            hash = photo.hash,
-            nonce = challenge.nonce,
-            enclaveSignature = attestation.enclaveSignature,
-            deviceAttestation = attestation.deviceAttestation,
-            metadata = metadata
-        )
     }
 
     /**
