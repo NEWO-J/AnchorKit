@@ -151,8 +151,7 @@ class PhotoCapture(private val context: Context) {
  * This class has an [internal] constructor — it can only be produced by the SDK's own
  * [PhotoCapture.capturePhoto] method.  External code (including consuming apps) can read
  * all fields (e.g. save [data] to the gallery or display [hash] to the user), but cannot
- * construct a [PhotoResult] directly.  This prevents callers from injecting an arbitrary
- * hash into [AnchorKit.submitPhoto].
+ * construct a [PhotoResult] directly.
  */
 data class PhotoResult internal constructor(
     val data: ByteArray,
