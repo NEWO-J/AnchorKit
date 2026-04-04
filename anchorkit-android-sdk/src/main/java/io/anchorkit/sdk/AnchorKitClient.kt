@@ -30,6 +30,11 @@ class AnchorKitClient(
     private val apiKey: String,
     private val baseUrl: String = "https://api.anchorkit.net"
 ) {
+    init {
+        require(baseUrl.startsWith("https://")) {
+            "baseUrl must use HTTPS (got: $baseUrl). Cleartext HTTP is not permitted."
+        }
+    }
     private val json = Json { ignoreUnknownKeys = true }
 
     // -------------------------------------------------------------------------

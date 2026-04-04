@@ -91,7 +91,8 @@ object EnclaveAttestation {
         ensureKeyExists(context)
 
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val privateKey = keyStore.getKey(KEY_ALIAS, null) as PrivateKey
+        val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey
+            ?: throw AnchorKitError.AttestationError("Failed to retrieve attestation key from Keystore — key may have been deleted or corrupted")
         val certChain = keyStore.getCertificateChain(KEY_ALIAS)
             ?: throw AnchorKitError.AttestationError("Certificate chain unavailable — key may not be hardware-backed")
 
