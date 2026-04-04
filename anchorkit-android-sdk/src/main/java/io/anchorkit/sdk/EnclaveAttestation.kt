@@ -85,13 +85,15 @@ object EnclaveAttestation {
      * @param metadata Key-value pairs included verbatim in the submit request
      * @param context  Android context used to access the Keystore
      */
+    @Synchronized
     fun sign(hash: String, nonce: String, metadata: Map<String, String>, context: Context): AttestationResult {
         val metadataHash = hashMetadata(metadata)
         val data = "$hash:$nonce:$metadataHash".toByteArray(Charsets.UTF_8)
         ensureKeyExists(context)
 
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        val privateKey = keyStore.getKey(KEY_ALIAS, null) as PrivateKey
+        val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey
+            ?: throw AnchorKitError.AttestationError("Failed to retrieve attestation key from Keystore — key may have been deleted or corrupted")
         val certChain = keyStore.getCertificateChain(KEY_ALIAS)
             ?: throw AnchorKitError.AttestationError("Certificate chain unavailable — key may not be hardware-backed")
 
@@ -119,6 +121,7 @@ object EnclaveAttestation {
     }
 
     /** Delete the key (e.g. on sign-out). A new key will be generated on next [sign] call. */
+    @Synchronized
     fun deleteKey() {
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (keyStore.containsAlias(KEY_ALIAS)) {
