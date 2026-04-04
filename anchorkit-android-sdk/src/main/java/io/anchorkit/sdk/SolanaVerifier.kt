@@ -295,6 +295,7 @@ object SolanaVerifier {
                 ?.jsonObject?.get("value")
                 ?.jsonObject?.get("data")
                 ?.jsonArray ?: return null
+            if (dataArr.isEmpty()) return null
             Base64.decode(dataArr[0].jsonPrimitive.content, Base64.DEFAULT)
         } catch (_: IOException) {
             null
