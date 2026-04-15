@@ -72,3 +72,32 @@
 > but its only supplmentary information, everything you see should be taken with a healthy amount of skepticism.
 > 
 ## Installation
+
+**1. Add JitPack to your project's `settings.gradle`:**
+
+```gradle
+dependencyResolutionManagement {
+    repositories {
+        google()
+        mavenCentral()
+        maven { url 'https://jitpack.io' }
+    }
+}
+```
+
+**2. Add the dependency in your app's `build.gradle`:**
+
+```gradle
+dependencies {
+    implementation 'com.github.newo-j.anchorkit:anchorkit-android-sdk:v1.0.1'
+}
+```
+
+**3. Get a free API key at [anchorkit.net](https://anchorkit.net) and initialise the SDK:**
+
+```kotlin
+AnchorKit.init(
+    context = applicationContext,
+    apiKey  = "your-api-key"
+)
+```
