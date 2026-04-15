@@ -3,6 +3,7 @@ name: Build Demo APK
 on:
   release:
     types: [published]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,4 +32,5 @@ jobs:
       - name: Upload APK to release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v1.0.1
           files: demo-app/build/outputs/apk/debug/demo-app-debug.apk
