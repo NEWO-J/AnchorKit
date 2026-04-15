@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue"/>
+  <a href="https://jitpack.io/#newo-j/anchorkit"><img src="https://jitpack.io/v/newo-j/anchorkit.svg" alt="JitPack"/></a>
   <img alt="API Level" src="https://img.shields.io/badge/API-24%2B-brightgreen"/>
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.1.0-purple?logo=kotlin"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green"/>
