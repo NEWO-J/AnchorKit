@@ -190,9 +190,10 @@ object SolanaVerifier {
      * (i.e. lies on the curve).  PDAs must NOT be on the curve so that no
      * private key corresponds to them.
      *
-     * Uses the standard Ed25519 field equation: x² = (y² - 1) / (d·y² + 1) mod p
-     * and checks whether x² has a square root mod p.  If it does, the point is
-     * on the curve and cannot be a PDA.
+     * Delegates to BouncyCastle's [org.bouncycastle.math.ec.rfc8032.Ed25519.validatePublicKeyFull],
+     * which implements the full RFC 8032 Section 5.1.3 validation:
+     * decodes the compressed y-coordinate, recovers x, and verifies the
+     * twisted-Edwards curve equation.
      */
     private fun isOnEd25519Curve(point: ByteArray): Boolean {
         if (point.size != 32) return false
