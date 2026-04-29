@@ -61,6 +61,17 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
 }
 
+// nmcp must be configured at the top level, not inside afterEvaluate,
+// otherwise Gradle resolves the block as task configuration instead of
+// calling the extension method.
+nmcp {
+    publishAllPublicationsToCentralPortal {
+        username = project.findProperty('sonatypeUsername') ?: ''
+        password = project.findProperty('sonatypePassword') ?: ''
+        publishingType = 'USER_MANAGED'
+    }
+}
+
 afterEvaluate {
     publishing {
         publications {
@@ -96,14 +107,6 @@ afterEvaluate {
                     }
                 }
             }
-        }
-    }
-
-    nmcp {
-        publishAllPublicationsToCentralPortal {
-            username = project.findProperty('sonatypeUsername') ?: ''
-            password = project.findProperty('sonatypePassword') ?: ''
-            publishingType = 'USER_MANAGED'
         }
     }
 
