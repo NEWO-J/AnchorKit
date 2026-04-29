@@ -44,6 +44,16 @@ android {
     }
 }
 
+// Maven Central requires a javadoc jar; an empty one satisfies the requirement.
+task releaseJavadocJar(type: Jar) {
+    archiveClassifier.set('javadoc')
+}
+
+// Gradle Module Metadata (.module file) confuses Central Portal's validator.
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
+}
+
 dependencies {
     implementation 'org.jetbrains.kotlin:kotlin-stdlib:2.1.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
@@ -65,6 +75,7 @@ afterEvaluate {
         publications {
             release(MavenPublication) {
                 from components.release
+                artifact releaseJavadocJar
 
                 groupId    = 'net.anchorkit'
                 artifactId = 'anchorkit-sdk'

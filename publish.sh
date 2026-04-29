@@ -22,9 +22,10 @@ BUNDLE="/tmp/anchorkit-bundle.zip"
 rm -f "$BUNDLE"
 
 echo "==> Bundling artifacts..."
-# Zip only the versioned directory — excludes maven-metadata-local.xml which
-# would cause Central Portal to reject the bundle as a malformed artifact.
-(cd "$HOME/.m2/repository" && zip -r "$BUNDLE" net/anchorkit/anchorkit-sdk/1.0.1/)
+# Zip only the versioned directory; exclude .module files (Gradle metadata that
+# confuses Central Portal's component validator).
+(cd "$HOME/.m2/repository" && zip -r "$BUNDLE" net/anchorkit/anchorkit-sdk/1.0.1/ \
+    --exclude "*.module" --exclude "*.module.asc")
 
 TOKEN=$(printf '%s:%s' "$USERNAME" "$PASSWORD" | base64 -w0)
 
