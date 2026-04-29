@@ -82,6 +82,7 @@ afterEvaluate {
                 version    = '1.0.1'
 
                 pom {
+                    packaging = 'aar'
                     name        = 'AnchorKit Android SDK'
                     description = 'Hardware-attested photo provenance SDK for Android. Cryptographically binds photos to the device that captured them, anchored to Solana.'
                     url         = 'https://anchorkit.net'
