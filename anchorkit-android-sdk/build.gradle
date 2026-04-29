@@ -4,6 +4,7 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.serialization'
     id 'maven-publish'
     id 'signing'
+    id 'com.gradleup.nmcp'
 }
 
 android {
@@ -96,16 +97,13 @@ afterEvaluate {
                 }
             }
         }
+    }
 
-        repositories {
-            maven {
-                name = 'sonatype'
-                url  = 'https://central.sonatype.com/api/v1/publisher/upload'
-                credentials {
-                    username = project.findProperty('sonatypeUsername') ?: ''
-                    password = project.findProperty('sonatypePassword') ?: ''
-                }
-            }
+    nmcp {
+        publishAllPublicationsToCentralPortal {
+            username = project.findProperty('sonatypeUsername') ?: ''
+            password = project.findProperty('sonatypePassword') ?: ''
+            publishingType = 'USER_MANAGED'
         }
     }
 
