@@ -72,6 +72,15 @@ dependencies {
 
 afterEvaluate {
     publishing {
+        // publishToMavenLocal skips checksum files; a named local repo generates
+        // the md5/sha1 files that Central Portal requires.
+        repositories {
+            maven {
+                name = 'LocalBundle'
+                url = layout.buildDirectory.dir('maven-bundle')
+            }
+        }
+
         publications {
             release(MavenPublication) {
                 from components.release

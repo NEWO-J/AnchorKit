@@ -16,15 +16,17 @@ fi
 export ORG_GRADLE_PROJECT_signingKey="$(gpg --export-secret-keys --armor 7DE24CE5)"
 
 echo "==> Building and signing release artifacts..."
-./gradlew :anchorkit-android-sdk:publishToMavenLocal
+# Publish to the LocalBundle repo (not MavenLocal) so Gradle generates md5/sha1.
+./gradlew :anchorkit-android-sdk:publishReleasePublicationToLocalBundleRepository
 
 BUNDLE="/tmp/anchorkit-bundle.zip"
 rm -f "$BUNDLE"
 
+BUNDLE_REPO="$PWD/anchorkit-android-sdk/build/maven-bundle"
+
 echo "==> Bundling artifacts..."
-# Zip only the versioned directory; exclude .module files (Gradle metadata that
-# confuses Central Portal's component validator).
-(cd "$HOME/.m2/repository" && zip -r "$BUNDLE" net/anchorkit/anchorkit-sdk/1.0.1/ \
+# Exclude .module files — Gradle metadata that confuses Central Portal.
+(cd "$BUNDLE_REPO" && zip -r "$BUNDLE" net/anchorkit/anchorkit-sdk/1.0.1/ \
     --exclude "*.module" --exclude "*.module.asc")
 
 TOKEN=$(printf '%s:%s' "$USERNAME" "$PASSWORD" | base64 -w0)
