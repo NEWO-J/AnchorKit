@@ -13,7 +13,6 @@ if [[ -z "$USERNAME" || -z "$PASSWORD" ]]; then
     exit 1
 fi
 
-# Pass the GPG key in-memory so it never touches disk in plaintext
 export ORG_GRADLE_PROJECT_signingKey="$(gpg --export-secret-keys --armor 7DE24CE5)"
 
 echo "==> Building and signing release artifacts..."
@@ -23,8 +22,9 @@ BUNDLE="/tmp/anchorkit-bundle.zip"
 rm -f "$BUNDLE"
 
 echo "==> Bundling artifacts..."
-# Bundle from the root of the m2 repo so the zip contains net/anchorkit/... paths
-(cd "$HOME/.m2/repository" && zip -r "$BUNDLE" net/anchorkit/)
+# Zip only the versioned directory — excludes maven-metadata-local.xml which
+# would cause Central Portal to reject the bundle as a malformed artifact.
+(cd "$HOME/.m2/repository" && zip -r "$BUNDLE" net/anchorkit/anchorkit-sdk/1.0.1/)
 
 TOKEN=$(printf '%s:%s' "$USERNAME" "$PASSWORD" | base64 -w0)
 
