@@ -4,7 +4,6 @@ plugins {
     id 'org.jetbrains.kotlin.plugin.serialization'
     id 'maven-publish'
     id 'signing'
-    id 'com.gradleup.nmcp'
 }
 
 android {
@@ -59,17 +58,6 @@ dependencies {
     implementation 'org.bouncycastle:bcprov-jdk18on:1.78.1'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
-}
-
-// nmcp must be configured at the top level, not inside afterEvaluate,
-// otherwise Gradle resolves the block as task configuration instead of
-// calling the extension method.
-nmcp {
-    publishAllPublicationsToCentralPortal {
-        username = project.findProperty('sonatypeUsername') ?: ''
-        password = project.findProperty('sonatypePassword') ?: ''
-        publishingType = 'USER_MANAGED'
-    }
 }
 
 afterEvaluate {
