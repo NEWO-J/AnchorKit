@@ -25,6 +25,7 @@
 <p align="center">
 <img src="assets/dogverify.png" alt="Verification" width="600"/>
 </p>
+
 - AnchorKit integrates with your existing CameraX pipeline via a single API call — no camera rewrites required.
 - All media captured is hardware attested using **secure hardware enclave** (TEE), then sent to the backend.
 - Each night, submissions are aggregated into a daily Merkle tree, and the root hash is anchored to the Solana blockchain.
