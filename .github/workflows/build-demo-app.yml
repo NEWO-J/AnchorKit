@@ -2,7 +2,7 @@ name: Build Demo App
 
 on:
   push:
-    branches: ["main", "claude/**"]
+    tags: ["v*.*.*"]
   pull_request:
     branches: ["main"]
 
@@ -41,17 +41,16 @@ jobs:
           path: demo-app/build/outputs/apk/debug/demo-app-debug.apk
           retention-days: 14
 
-      # On main: create/update the rolling "latest" release
+      # On version tags: publish a GitHub release
       - name: Publish to GitHub Releases
-        if: github.ref == 'refs/heads/main'
+        if: startsWith(github.ref, 'refs/tags/v')
         uses: ncipollo/release-action@v1
         with:
-          tag: latest
-          name: "Latest Build"
+          tag: ${{ github.ref_name }}
+          name: "${{ github.ref_name }}"
           body: |
-            Automatically built from `main`.
-            Commit: ${{ github.sha }}
-          prerelease: true
+            AnchorKit Demo App — built from SDK release ${{ github.ref_name }}.
+          prerelease: false
           allowUpdates: true
           removeArtifacts: true
           artifacts: demo-app/build/outputs/apk/debug/demo-app-debug.apk
