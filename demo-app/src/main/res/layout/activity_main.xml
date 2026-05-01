@@ -45,7 +45,68 @@
                     android:text="@string/subtitle"
                     android:textSize="14sp"
                     android:textColor="@color/text_secondary"
-                    android:layout_marginBottom="32dp" />
+                    android:layout_marginBottom="16dp" />
+
+                <!-- API Key card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:cardCornerRadius="12dp"
+                    app:cardElevation="2dp"
+                    android:layout_marginBottom="16dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="20dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/api_key_title"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/text_primary"
+                            android:layout_marginBottom="6dp" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/api_key_desc"
+                            android:textSize="13sp"
+                            android:textColor="@color/text_secondary"
+                            android:layout_marginBottom="16dp" />
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/tilApiKey"
+                            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:hint="@string/api_key_hint"
+                            app:endIconMode="password_toggle"
+                            android:layout_marginBottom="12dp">
+
+                            <com.google.android.material.textfield.TextInputEditText
+                                android:id="@+id/etApiKey"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:inputType="textPassword"
+                                android:maxLines="1"
+                                android:textColor="@color/text_secondary" />
+
+                        </com.google.android.material.textfield.TextInputLayout>
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnSaveApiKey"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="@string/btn_save_api_key"
+                            android:textAllCaps="false"
+                            app:cornerRadius="8dp" />
+
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
 
                 <!-- Capture card -->
                 <com.google.android.material.card.MaterialCardView
@@ -84,6 +145,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/btn_capture"
                             android:textAllCaps="false"
+                            android:enabled="false"
                             app:cornerRadius="8dp" />
 
                     </LinearLayout>
@@ -127,6 +189,7 @@
                             android:layout_height="wrap_content"
                             android:text="@string/btn_pick_photo"
                             android:textAllCaps="false"
+                            android:enabled="false"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             app:cornerRadius="8dp"
                             android:layout_marginBottom="12dp" />
@@ -151,7 +214,7 @@
                             android:visibility="gone"
                             android:layout_marginBottom="12dp" />
 
-                        <!-- Step 2: verify (enabled only after a photo is picked) -->
+                        <!-- Step 2: verify (enabled only after a photo is picked and key is set) -->
                         <com.google.android.material.button.MaterialButton
                             android:id="@+id/btnVerify"
                             android:layout_width="match_parent"

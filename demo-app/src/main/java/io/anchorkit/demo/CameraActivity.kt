@@ -44,13 +44,11 @@ class CameraActivity : AppCompatActivity() {
     private var lensFacing = CameraSelector.LENS_FACING_BACK
     private var activeCameraSelector: CameraSelector? = null
 
-    // Camera mode & recording state
     private var isVideoMode = false
     private var isRecording = false
     private var videoRecordingSession: VideoRecordingSession? = null
     private var isFlashOn = false
 
-    // Only needed for Android 9 (API 28) and below.
     private val writeStoragePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -79,14 +77,18 @@ class CameraActivity : AppCompatActivity() {
         binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        val apiKey = intent.getStringExtra(EXTRA_API_KEY).orEmpty()
+        if (apiKey.isEmpty()) {
+            returnError("No API key configured. Set your API key on the home screen first.")
+            return
+        }
+
         anchorkit = AnchorKit(
             context = this,
-            apiKey = BuildConfig.ANCHORKIT_API_KEY,
+            apiKey = apiKey,
             baseUrl = BuildConfig.ANCHORKIT_BASE_URL
         )
 
-        // Pre-request WRITE_EXTERNAL_STORAGE on Android ≤ 9 so it's granted by
-        // the time the user taps the shutter.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED
@@ -116,7 +118,6 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun startPreview() {
-        // Turn off flash whenever we (re)start the preview so state stays consistent.
         isFlashOn = false
         imageCapture = null
         val future = ProcessCameraProvider.getInstance(this)
@@ -125,8 +126,6 @@ class CameraActivity : AppCompatActivity() {
             val preview = Preview.Builder().build().also {
                 it.setSurfaceProvider(binding.previewView.surfaceProvider)
             }
-            // Bind ImageCapture alongside Preview so it is already initialised when
-            // the shutter fires — eliminates the 1-2 s re-bind delay on capture.
             val captureUseCase = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
@@ -137,14 +136,12 @@ class CameraActivity : AppCompatActivity() {
             try {
                 cameraProvider.unbindAll()
                 camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, captureUseCase)
-                // Set zoom to the absolute hardware minimum once CameraX reports ZoomState.
                 camera?.cameraInfo?.zoomState?.observe(this@CameraActivity) { state ->
                     if (state != null) {
                         camera?.cameraControl?.setZoomRatio(state.minZoomRatio)
                         camera?.cameraInfo?.zoomState?.removeObservers(this@CameraActivity)
                     }
                 }
-                // Show flash button only when the active camera has a flash unit.
                 val hasFlash = camera?.cameraInfo?.hasFlashUnit() == true
                 binding.btnFlash.visibility = if (hasFlash) View.VISIBLE else View.GONE
                 binding.btnFlash.setImageResource(R.drawable.ic_flash_off)
@@ -154,10 +151,6 @@ class CameraActivity : AppCompatActivity() {
         }, ContextCompat.getMainExecutor(this))
     }
 
-    /** Returns a [CameraSelector] for the widest available camera on the active facing side.
-     *  [CameraInfo.intrinsicZoomRatio] is < 1.0 for ultra-wide lenses, so
-     *  the camera with the lowest value is the widest one. Applies to both
-     *  front and back cameras so the selfie camera also defaults to full FOV. */
     private fun selectWidestCamera(cameraProvider: ProcessCameraProvider): CameraSelector {
         val fallback = if (lensFacing == CameraSelector.LENS_FACING_BACK)
             CameraSelector.DEFAULT_BACK_CAMERA else CameraSelector.DEFAULT_FRONT_CAMERA
@@ -170,8 +163,6 @@ class CameraActivity : AppCompatActivity() {
 
     private fun toggleFlash() {
         isFlashOn = !isFlashOn
-        // Update the already-bound ImageCapture use case so the new mode takes
-        // effect immediately — no need to rebind.
         imageCapture?.flashMode = if (isFlashOn) ImageCapture.FLASH_MODE_ON else ImageCapture.FLASH_MODE_OFF
         binding.btnFlash.setImageResource(
             if (isFlashOn) R.drawable.ic_flash_on else R.drawable.ic_flash_off
@@ -187,31 +178,19 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun onCloseClicked() {
-        // If recording, stop it (discard result) before closing.
         videoRecordingSession?.stop()
         finish()
     }
 
-    // -------------------------------------------------------------------------
-    // Mode switching (photo ↔ video)
-    // -------------------------------------------------------------------------
-
     private fun onModeSwitchClicked() {
-        if (isRecording) return  // Guarded by UI; belt-and-suspenders
+        if (isRecording) return
         isVideoMode = !isVideoMode
         updateModeUi(animate = true)
     }
 
-    /**
-     * Sync all mode-dependent UI to [isVideoMode]:
-     *  - photo icon alpha on/off in the pill
-     *  - video icon alpha on/off in the pill
-     *  - shutter inner circle animates between 68dp (photo) and 52dp (video)
-     */
     private fun updateModeUi(animate: Boolean) {
         val targetDp = if (isVideoMode) VIDEO_INNER_DP else PHOTO_INNER_DP
 
-        // Pill icon highlights: active = opaque + circle background, inactive = dim
         binding.ivModePhoto.alpha = if (isVideoMode) 0.4f else 1.0f
         binding.ivModeVideo.alpha = if (isVideoMode) 1.0f else 0.4f
         if (isVideoMode) {
@@ -226,7 +205,6 @@ class CameraActivity : AppCompatActivity() {
         val targetPx = (targetDp * density).toInt()
 
         if (animate) {
-            // Read current pixel size from layout params (set either from XML or a prior animation)
             val currentPx = binding.ivShutterInner.layoutParams.width
                 .takeIf { it > 0 } ?: (PHOTO_INNER_DP * density).toInt()
             ValueAnimator.ofInt(currentPx, targetPx).apply {
@@ -249,10 +227,6 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Shutter button — routes to photo capture or video record/stop
-    // -------------------------------------------------------------------------
-
     private fun onShutterClicked() {
         if (isVideoMode) {
             if (!isRecording) startRecording() else stopRecordingAndSubmit()
@@ -261,12 +235,7 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Photo capture
-    // -------------------------------------------------------------------------
-
     private fun onTakePhoto() {
-        // On Android 9 and below, storage permission is required to save to gallery.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 != PackageManager.PERMISSION_GRANTED
@@ -326,13 +295,7 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Video recording
-    // -------------------------------------------------------------------------
-
     private fun startRecording() {
-        // Disable all controls briefly while the recording session is initialising.
-        // Mode switch stays disabled for the entire recording duration.
         binding.btnShutter.isEnabled = false
         binding.btnModeSwitch.isEnabled = false
         binding.btnFlip.isEnabled = false
@@ -342,21 +305,16 @@ class CameraActivity : AppCompatActivity() {
                 val session = anchorkit.startVideoRecording(
                     lifecycleOwner = this@CameraActivity,
                     lensFacing = lensFacing,
-                    // Pass the exact selector used for the preview so VideoCapture
-                    // binds to the same physical camera, preventing an FOV shift.
                     cameraSelector = activeCameraSelector
                 )
                 videoRecordingSession = session
                 isRecording = true
 
-                // Enable torch now if the user wants flash during recording.
                 if (isFlashOn) camera?.cameraControl?.enableTorch(true)
 
-                // Re-enable shutter (for stop) and flip; keep mode switch locked
                 binding.btnShutter.isEnabled = true
                 binding.btnFlip.isEnabled = true
 
-                // Inner circle turns red — the only recording indicator
                 binding.ivShutterInner.setBackgroundResource(R.drawable.bg_record_inner)
 
             } catch (e: AnchorKitError.DeviceIntegrityError) {
@@ -382,7 +340,6 @@ class CameraActivity : AppCompatActivity() {
         isRecording = false
         videoRecordingSession = null
 
-        // Turn off torch (if it was on for recording) and reset inner circle.
         camera?.cameraControl?.enableTorch(false)
         binding.ivShutterInner.setBackgroundResource(R.drawable.bg_shutter_inner)
         setControlsEnabled(false)
@@ -431,17 +388,6 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Gallery saving
-    // -------------------------------------------------------------------------
-
-    /**
-     * Write [jpegBytes] into the device's Pictures/AnchorKit album via MediaStore.
-     * On Android 10+ no extra permission is required. On Android 9 and below we
-     * need WRITE_EXTERNAL_STORAGE, which is requested in onCreate.
-     *
-     * Returns `true` on success, `false` if the MediaStore insert failed.
-     */
     private fun savePhotoToGallery(jpegBytes: ByteArray, timestamp: Long): Boolean {
         val filename = "ANCHORKIT_$timestamp.jpg"
         val values = ContentValues().apply {
@@ -469,12 +415,6 @@ class CameraActivity : AppCompatActivity() {
         return true
     }
 
-    /**
-     * Copy the recorded MP4 temp [file] into the device's Movies/AnchorKit album
-     * via MediaStore, then delete the temp file.
-     *
-     * Returns `true` on success.
-     */
     private fun saveVideoToGallery(file: java.io.File, timestamp: Long): Boolean {
         val filename = "ANCHORKIT_$timestamp.mp4"
         val values = ContentValues().apply {
@@ -506,11 +446,6 @@ class CameraActivity : AppCompatActivity() {
         return true
     }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    /** Disable/enable all camera controls and show/hide the submitting overlay. */
     private fun setControlsEnabled(enabled: Boolean) {
         binding.btnShutter.isEnabled = enabled
         binding.btnFlip.isEnabled = enabled
@@ -520,7 +455,6 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun returnError(message: String) {
-        // Reset shutter inner to white regardless of mode
         binding.ivShutterInner.setBackgroundResource(R.drawable.bg_shutter_inner)
         setControlsEnabled(true)
 
@@ -533,13 +467,13 @@ class CameraActivity : AppCompatActivity() {
         private const val PHOTO_INNER_DP = 68
         private const val VIDEO_INNER_DP = 52
 
+        const val EXTRA_API_KEY = "api_key"
         const val EXTRA_MEDIA_TYPE = "media_type"
         const val MEDIA_TYPE_PHOTO = "photo"
         const val MEDIA_TYPE_VIDEO = "video"
         const val EXTRA_HASH = "hash"
         const val EXTRA_TIMESTAMP_MS = "timestamp_ms"
         const val EXTRA_VIDEO_DURATION_MS = "video_duration_ms"
-        // Receipt fields — populated before returning for both photo and video
         const val EXTRA_RECEIPT_DAY = "receipt_day"
         const val EXTRA_RECEIPT_HASH_ID = "receipt_hash_id"
         const val EXTRA_RECEIPT_TABLE = "receipt_table"
