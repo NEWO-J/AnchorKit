@@ -60,7 +60,7 @@ dependencies {
 
 mavenPublishing {
     configure(new AndroidSingleVariantLibrary("release", true, true))
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, "anchorkit-sdk-${sdkVersion}", true)
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
 
     coordinates('net.anchorkit', 'anchorkit-sdk', sdkVersion)
