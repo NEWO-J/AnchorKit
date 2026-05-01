@@ -71,7 +71,7 @@
 > Its important that AnchorKit is **not** treated as an arbiter of truth.
 > It does make it exceedingly difficult for AI images to pose as legitimate media,
 > but its only supplmentary information, everything you see should be taken with a healthy amount of skepticism.
-> 
+
 ## Installation
 
 AnchorKit is published to Maven Central. Add the dependency to your app-level `build.gradle`:
@@ -103,3 +103,66 @@ Add to your `AndroidManifest.xml`:
 <uses-permission android:name="android.permission.CAMERA" />
 <uses-permission android:name="android.permission.INTERNET" />
 ```
+
+## Quick Start
+
+Create an `AnchorKit` instance once — typically in your `Application` class or injected via DI:
+
+```kotlin
+val anchorKit = AnchorKit(
+    context = applicationContext,
+    apiKey = "YOUR_API_KEY"
+)
+```
+
+### Drop-in capture
+
+Replace your existing shutter handler with a single `captureAndSubmit` call. AnchorKit runs the full pipeline — device integrity check, photo capture, hardware attestation, and API submission — in one step:
+
+```kotlin
+binding.btnShutter.setOnClickListener {
+    lifecycleScope.launch {
+        try {
+            val result = anchorKit.captureAndSubmit(lifecycleOwner = this@CameraActivity)
+
+            val hash = result.photo.hash       // SHA-256 of the captured image
+            val receipt = result.receipt       // server confirmation
+            showSuccess(hash)
+        } catch (e: AnchorKitError.DeviceIntegrityError) {
+            showError("Device integrity check failed")
+        } catch (e: AnchorKitError.AttestationError) {
+            showError("Hardware attestation failed")
+        } catch (e: AnchorKitError.NetworkError) {
+            showError("Network error: ${e.message}")
+        } catch (e: AnchorKitError.ApiError) {
+            showError("API error ${e.statusCode}")
+        }
+    }
+}
+```
+
+### Split capture and submit
+
+If you need to capture first and submit later (e.g. show a preview before confirming), use the two-step API:
+
+```kotlin
+// Step 1 — capture in your camera screen
+val photo = anchorKit.capturePhoto(lifecycleOwner = this)
+showPreview(photo.data)
+
+// Step 2 — submit after the user confirms
+val receipt = anchorKit.submitPhoto(photo)
+```
+
+### Verify a photo
+
+```kotlin
+val result = anchorKit.verify(hash)
+if (result.verified) {
+    println("Anchored on Solana: ${result.solana_tx}")
+} else {
+    println(result.message)
+}
+```
+
+For the full API surface including video recording, offline proof verification, and notification subscriptions, see the [SDK Reference](https://anchorkit.net/docs/sdk-reference).
