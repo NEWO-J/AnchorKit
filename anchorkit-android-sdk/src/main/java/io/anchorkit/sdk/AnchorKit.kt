@@ -162,31 +162,6 @@ class AnchorKit(
     }
 
     /**
-     * Capture a photo from the device camera. No network calls are made.
-     *
-     * Returns the raw image bytes, SHA-256 hash, and capture metadata.
-     * To capture and submit in one step, use [captureAndSubmit] instead.
-     *
-     * IMPORTANT: the calling Activity/Fragment must hold android.permission.CAMERA
-     * before invoking this function.
-     *
-     * @throws AnchorKitError.DeviceIntegrityError if the device shows signs of tampering
-     */
-    suspend fun capturePhoto(
-        lifecycleOwner: LifecycleOwner,
-        lensFacing: Int = CameraSelector.LENS_FACING_BACK,
-        flashMode: Int = ImageCapture.FLASH_MODE_OFF
-    ): PhotoResult {
-        DeviceIntegrity.check()?.let { reason ->
-            throw AnchorKitError.DeviceIntegrityError(
-                "Submission refused: $reason. " +
-                "Attested submissions require an unmodified device with a locked bootloader."
-            )
-        }
-        return photoCapture.capturePhoto(lifecycleOwner, lensFacing = lensFacing, flashMode = flashMode)
-    }
-
-    /**
      * Verify whether a hash has been anchored to the blockchain.
      *
      * @throws AnchorKitError.NetworkError on connectivity failures
