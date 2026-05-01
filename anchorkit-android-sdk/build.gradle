@@ -1,10 +1,14 @@
+import com.vanniktech.maven.publish.SonatypeHost
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.serialization'
-    id 'maven-publish'
-    id 'signing'
+    id 'com.vanniktech.maven.publish'
 }
+
+def sdkVersion = '1.0.3'
 
 android {
     namespace 'io.anchorkit.sdk'
@@ -18,7 +22,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true  // M-1: obfuscate SDK internals in release builds
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -35,12 +39,6 @@ android {
 
     kotlinOptions {
         jvmTarget = '17'
-    }
-
-    publishing {
-        singleVariant('release') {
-            withSourcesJar()
-        }
     }
 }
 
@@ -60,61 +58,35 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            release(MavenPublication) {
-                from components.release
+mavenPublishing {
+    configure(new AndroidSingleVariantLibrary("release", true, true))
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    signAllPublications()
 
-                groupId    = 'net.anchorkit'
-                artifactId = 'anchorkit-sdk'
-                version    = '1.0.1'
+    coordinates('net.anchorkit', 'anchorkit-sdk', sdkVersion)
 
-                pom {
-                    name        = 'AnchorKit Android SDK'
-                    description = 'Hardware-attested photo provenance SDK for Android. Cryptographically binds photos to the device that captured them, anchored to Solana.'
-                    url         = 'https://anchorkit.net'
+    pom {
+        name = 'AnchorKit Android SDK'
+        description = 'Hardware-attested photo provenance SDK for Android. Cryptographically binds photos to the device that captured them, anchored to Solana.'
+        url = 'https://anchorkit.net'
 
-                    licenses {
-                        license {
-                            name = 'MIT License'
-                            url  = 'https://opensource.org/licenses/MIT'
-                        }
-                    }
-                    developers {
-                        developer {
-                            id   = 'newo-j'
-                            name = 'Jonah Owen'
-                            url  = 'https://github.com/newo-j'
-                        }
-                    }
-                    scm {
-                        connection          = 'scm:git:git://github.com/newo-j/anchorkit.git'
-                        developerConnection = 'scm:git:ssh://github.com/newo-j/anchorkit.git'
-                        url                 = 'https://github.com/newo-j/anchorkit'
-                    }
-                }
+        licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://opensource.org/licenses/MIT'
             }
         }
-
-        repositories {
-            maven {
-                name = 'sonatype'
-                url  = 'https://central.sonatype.com/api/v1/publisher/upload'
-                credentials {
-                    username = project.findProperty('sonatypeUsername') ?: ''
-                    password = project.findProperty('sonatypePassword') ?: ''
-                }
+        developers {
+            developer {
+                id = 'newo-j'
+                name = 'Jonah Owen'
+                url = 'https://github.com/newo-j'
             }
         }
-    }
-
-    signing {
-        useInMemoryPgpKeys(
-            project.findProperty('signingKeyId') ?: '',
-            project.findProperty('signingKey') ?: '',
-            project.findProperty('signingPassword') ?: ''
-        )
-        sign publishing.publications.release
+        scm {
+            connection = 'scm:git:git://github.com/newo-j/anchorkit.git'
+            developerConnection = 'scm:git:ssh://github.com/newo-j/anchorkit.git'
+            url = 'https://github.com/newo-j/anchorkit'
+        }
     }
 }

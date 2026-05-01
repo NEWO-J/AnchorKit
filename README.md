@@ -78,7 +78,7 @@ AnchorKit is published to Maven Central. Add the dependency to your app-level `b
 
 ```groovy
 dependencies {
-    implementation 'net.anchorkit:anchorkit-sdk:1.0.1'
+    implementation 'net.anchorkit:anchorkit-sdk:1.0.3'
 }
 ```
 
@@ -86,7 +86,7 @@ Or with Kotlin DSL (`build.gradle.kts`):
 
 ```kotlin
 dependencies {
-    implementation("net.anchorkit:anchorkit-sdk:1.0.1")
+    implementation("net.anchorkit:anchorkit-sdk:1.0.3")
 }
 ```
 
