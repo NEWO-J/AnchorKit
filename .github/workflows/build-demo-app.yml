@@ -32,13 +32,16 @@ jobs:
         env:
           ANCHORKIT_BASE_URL: ${{ secrets.ANCHORKIT_BASE_URL }}
 
+      - name: Rename APK
+        run: mv demo-app/build/outputs/apk/debug/demo-app-debug.apk demo-app/build/outputs/apk/debug/demo-app.apk
+
       # On PRs: upload as a workflow artifact only
       - name: Upload artifact (PR builds)
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: demo-app-debug
-          path: demo-app/build/outputs/apk/debug/demo-app-debug.apk
+          name: demo-app
+          path: demo-app/build/outputs/apk/debug/demo-app.apk
           retention-days: 14
 
       # On version tags: publish a GitHub release
@@ -53,5 +56,5 @@ jobs:
           prerelease: false
           allowUpdates: true
           removeArtifacts: true
-          artifacts: demo-app/build/outputs/apk/debug/demo-app-debug.apk
+          artifacts: demo-app/build/outputs/apk/debug/demo-app.apk
           token: ${{ secrets.GITHUB_TOKEN }}
