@@ -113,9 +113,9 @@ val anchorKit = AnchorKit(
 )
 ```
 
-### Drop-in capture
+### Photo capture
 
-Replace your existing shutter handler with a single `captureAndSubmit` call. AnchorKit runs the full pipeline — device integrity check, photo capture, hardware attestation, and API submission — in one step:
+Replace your existing shutter handler with a single `captureAndSubmit` call. AnchorKit runs the full pipeline — device integrity check, photo capture, hardware attestation, and API submission — in one atomic step:
 
 ```kotlin
 binding.btnShutter.setOnClickListener {
@@ -139,7 +139,54 @@ binding.btnShutter.setOnClickListener {
 }
 ```
 
-### Verify a photo
+### Video capture
+
+Call `startVideoRecording` when the user taps record, then `stopVideoAndSubmit` when they tap stop. The SDK owns the recording session and submits atomically on stop — you never hold raw video data between capture and submission:
+
+```kotlin
+var recordingSession: VideoRecordingSession? = null
+
+// User taps record
+binding.btnRecord.setOnClickListener {
+    lifecycleScope.launch {
+        try {
+            recordingSession = anchorKit.startVideoRecording(
+                lifecycleOwner = this@CameraActivity,
+                previewSurfaceProvider = binding.previewView.surfaceProvider
+            )
+            binding.btnRecord.isEnabled = false
+            binding.btnStop.isEnabled = true
+        } catch (e: AnchorKitError.DeviceIntegrityError) {
+            showError("Device integrity check failed")
+        }
+    }
+}
+
+// User taps stop
+binding.btnStop.setOnClickListener {
+    lifecycleScope.launch {
+        try {
+            val result = anchorKit.stopVideoAndSubmit(recordingSession!!)
+
+            val hash = result.video.hash       // SHA-256 of the video file
+            val receipt = result.receipt       // server confirmation
+            showSuccess(hash)
+        } catch (e: AnchorKitError.AttestationError) {
+            showError("Hardware attestation failed")
+        } catch (e: AnchorKitError.NetworkError) {
+            showError("Network error: ${e.message}")
+        } catch (e: AnchorKitError.ApiError) {
+            showError("API error ${e.statusCode}")
+        } finally {
+            recordingSession = null
+            binding.btnRecord.isEnabled = true
+            binding.btnStop.isEnabled = false
+        }
+    }
+}
+```
+
+### Verify a hash
 
 ```kotlin
 val result = anchorKit.verify(hash)
@@ -150,4 +197,4 @@ if (result.verified) {
 }
 ```
 
-For the full API surface including video recording, offline proof verification, and notification subscriptions, see the [SDK Reference](https://anchorkit.net/docs/sdk-reference).
+For the full API surface including offline proof verification and notification subscriptions, see the [SDK Reference](https://anchorkit.net/docs/sdk-reference).
