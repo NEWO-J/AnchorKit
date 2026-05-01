@@ -107,13 +107,9 @@ afterEvaluate {
         }
     }
 
+    // Gradle signing plugin reads signing.keyId, signing.password, and
+    // signing.secretKeyRingFile automatically from ~/.gradle/gradle.properties
     signing {
-        def key      = findProperty('signingKey')?.toString()
-        def keyId    = findProperty('signingKeyId')?.toString()
-        def password = findProperty('signingPassword')?.toString()
-        if (key) {
-            useInMemoryPgpKeys(keyId, key, password)
-        }
         sign publishing.publications.release
     }
 }
