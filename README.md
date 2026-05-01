@@ -125,7 +125,7 @@ binding.btnShutter.setOnClickListener {
         try {
             val result = anchorKit.captureAndSubmit(lifecycleOwner = this@CameraActivity)
 
-            val hash = result.photo.hash       // SHA-256 of the captured image
+            val hash = result.photo.hash       // SHA-256 of the captured image / video
             val receipt = result.receipt       // server confirmation
             showSuccess(hash)
         } catch (e: AnchorKitError.DeviceIntegrityError) {
@@ -144,7 +144,7 @@ binding.btnShutter.setOnClickListener {
 ### Verify a photo
 
 ```kotlin
-val result = anchorKit.verify(hash)
+val result = anchorKit.verify(hash) // SHA-256 hash of an image / video
 if (result.verified) {
     println("Anchored on Solana: ${result.solana_tx}")
 } else {
