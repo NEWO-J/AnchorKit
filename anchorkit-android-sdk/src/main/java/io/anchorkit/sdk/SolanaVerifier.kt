@@ -225,6 +225,10 @@ object SolanaVerifier {
             if (step.size != 2) return null
             val sibling = step[0]
             val position = step[1]
+            // L-3: Validate sibling hash and position before processing to produce
+            // a clear null rather than a garbled result from malformed input.
+            if (sibling.length != 64 || !sibling.all { it in '0'..'9' || it in 'a'..'f' }) return null
+            if (position != "left" && position != "right") return null
             current = if (position == "left") hashNode(sibling, current) else hashNode(current, sibling)
         }
         return current

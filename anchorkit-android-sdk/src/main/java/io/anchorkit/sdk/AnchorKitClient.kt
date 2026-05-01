@@ -97,10 +97,7 @@ class AnchorKitClient(
 
                 // Step 2 — SPKI pinning.
                 if (PRODUCTION_PINS.isEmpty()) {
-                    throw CertificateException(
-                        "TLS certificate pins not configured for $PRODUCTION_HOST. " +
-                        "Populate PRODUCTION_PINS in AnchorKitClient before shipping."
-                    )
+                    throw CertificateException("TLS connection validation failed. Contact support@anchorkit.net.")
                 }
 
                 val matchesPin = chain.any { cert ->
@@ -112,11 +109,8 @@ class AnchorKitClient(
                 }
 
                 if (!matchesPin) {
-                    throw CertificateException(
-                        "TLS certificate pin mismatch for $PRODUCTION_HOST. " +
-                        "Possible MITM attack, or the server certificate was rotated without " +
-                        "updating the SDK pins. Contact support@anchorkit.io."
-                    )
+                    // L-1: Generic message — don't reveal pin details or domain to logs.
+                    throw CertificateException("TLS connection validation failed. Contact support@anchorkit.net.")
                 }
             }
 
@@ -179,7 +173,6 @@ class AnchorKitClient(
     ): VerificationReceipt = withContext(Dispatchers.IO) {
         val request = SubmitRequest(
             hash = hash.lowercase(),
-            api_key = apiKey,
             nonce = nonce,
             enclave_signature = enclaveSignature,
             device_attestation = deviceAttestation,
@@ -316,9 +309,9 @@ class AnchorKitClient(
             }
             requestMethod = method
             setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("X-API-Key", apiKey)
-            connectTimeout = 30_000
-            readTimeout = 30_000
+            setRequestProperty("Authorization", "Bearer $apiKey") // H-2: use standard Bearer auth
+            connectTimeout = 15_000  // L-2: standardised to match SolanaVerifier
+            readTimeout = 15_000
             if (method == "POST") doOutput = true
         }
     }

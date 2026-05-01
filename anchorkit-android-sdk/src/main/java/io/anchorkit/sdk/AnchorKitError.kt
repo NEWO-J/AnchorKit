@@ -13,6 +13,20 @@ sealed class AnchorKitError(message: String, cause: Throwable? = null) :
     class AttestationError(message: String, cause: Throwable? = null) :
         AnchorKitError(message, cause)
 
+    /** M-4: Typed attestation failure subtypes — catch these for retry/UX decisions. */
+
+    /** Device has no hardware-backed security element (TEE or StrongBox). Not retryable. */
+    class HardwareNotAvailableError(message: String, cause: Throwable? = null) :
+        AnchorKitError(message, cause)
+
+    /** The attestation key or its certificate chain is corrupted or missing. Delete and regenerate. */
+    class KeyCorruptedError(message: String, cause: Throwable? = null) :
+        AnchorKitError(message, cause)
+
+    /** The signing operation failed transiently — safe to retry. */
+    class SigningFailedError(message: String, cause: Throwable? = null) :
+        AnchorKitError(message, cause)
+
     /** A network request failed (timeout, no connectivity, TLS error, etc.). */
     class NetworkError(message: String, cause: Throwable? = null) :
         AnchorKitError(message, cause)
