@@ -68,7 +68,7 @@ afterEvaluate {
 
                 groupId    = 'net.anchorkit'
                 artifactId = 'anchorkit-sdk'
-                version    = '1.0.1'
+                version    = '1.0.2'
 
                 pom {
                     name        = 'AnchorKit Android SDK'
@@ -99,7 +99,7 @@ afterEvaluate {
 
         repositories {
             // Publishes a proper Maven layout with checksums to a local directory.
-            // ZIP the output and upload to https://central.sonatype.com/publishing/deployments
+            // ZIP the output and upload via CLI to Maven Central.
             maven {
                 name = 'LocalBundle'
                 url  = uri("${layout.buildDirectory.get()}/bundle")
@@ -107,8 +107,6 @@ afterEvaluate {
         }
     }
 
-    // Gradle signing plugin reads signing.keyId, signing.password, and
-    // signing.secretKeyRingFile automatically from ~/.gradle/gradle.properties
     signing {
         sign publishing.publications.release
     }
