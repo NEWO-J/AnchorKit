@@ -28,7 +28,6 @@ jobs:
       - name: Build demo-app debug APK
         run: ./gradlew :demo-app:assembleDebug --stacktrace
         env:
-          ANCHORKIT_API_KEY: ${{ secrets.ANCHORKIT_API_KEY }}
           ANCHORKIT_BASE_URL: ${{ secrets.ANCHORKIT_BASE_URL }}
 
       - name: Upload APK artifact

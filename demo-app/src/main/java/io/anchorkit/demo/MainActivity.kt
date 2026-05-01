@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.ContentValues
 import android.os.Build
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
@@ -38,19 +39,13 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    private lateinit var anchorkit: AnchorKit
+    private var anchorkit: AnchorKit? = null
     private var isTabSwitching = false
 
-    // Hash computed from the last picked photo — non-null once a photo is selected.
     private var pickedPhotoHash: String? = null
-
-    // Non-null only when the current result tab is showing a blockchain-verified result.
     private var lastVerifiedHash: String? = null
-
-    // Full verification result retained so the download bundle can include attestation fields.
     private var lastVerificationResult: io.anchorkit.sdk.models.VerificationResult? = null
 
-    // Requests CAMERA permission then opens CameraActivity.
     private val cameraPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -61,7 +56,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Receives the capture result (hash + receipt fields) back from CameraActivity.
     private val cameraActivityLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -73,7 +67,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Image picker launcher — opens the system gallery for verification lookups.
     private val photoPickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -85,18 +78,21 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        anchorkit = AnchorKit(
-            context = this,
-            apiKey = BuildConfig.ANCHORKIT_API_KEY,
-            baseUrl = BuildConfig.ANCHORKIT_BASE_URL
-        )
+        // Load saved API key and initialise AnchorKit if present
+        val savedKey = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_API_KEY, "").orEmpty()
+        if (savedKey.isNotEmpty()) {
+            binding.etApiKey.setText(savedKey)
+            initAnchorKit(savedKey)
+        }
 
-        // Always show the orange outline on the email field, not just when focused.
         val orange = ContextCompat.getColor(this, R.color.primary)
         val strokeStates = arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf())
         val strokeColors = intArrayOf(orange, orange)
         binding.tilEmail.setBoxStrokeColorStateList(ColorStateList(strokeStates, strokeColors))
+        binding.tilApiKey.setBoxStrokeColorStateList(ColorStateList(strokeStates, strokeColors))
 
+        binding.btnSaveApiKey.setOnClickListener { onSaveApiKeyClicked() }
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
@@ -116,6 +112,39 @@ class MainActivity : AppCompatActivity() {
     }
 
     // -------------------------------------------------------------------------
+    // API key management
+    // -------------------------------------------------------------------------
+
+    private fun initAnchorKit(apiKey: String) {
+        anchorkit = AnchorKit(
+            context = this,
+            apiKey = apiKey,
+            baseUrl = BuildConfig.ANCHORKIT_BASE_URL
+        )
+        updateActionButtons()
+    }
+
+    private fun onSaveApiKeyClicked() {
+        val key = binding.etApiKey.text?.toString().orEmpty().trim()
+        if (key.isEmpty()) {
+            binding.tilApiKey.error = "Enter an API key"
+            return
+        }
+        binding.tilApiKey.error = null
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(PREF_API_KEY, key).apply()
+        initAnchorKit(key)
+        Toast.makeText(this, "API key saved", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun updateActionButtons() {
+        val hasKey = anchorkit != null
+        binding.btnCapture.isEnabled = hasKey
+        binding.btnPickPhoto.isEnabled = hasKey
+        binding.btnVerify.isEnabled = hasKey && pickedPhotoHash != null
+    }
+
+    // -------------------------------------------------------------------------
     // Button handlers
     // -------------------------------------------------------------------------
 
@@ -130,7 +159,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchCameraActivity() {
-        cameraActivityLauncher.launch(Intent(this, CameraActivity::class.java))
+        val apiKey = getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_API_KEY, "").orEmpty()
+        val intent = Intent(this, CameraActivity::class.java).apply {
+            putExtra(CameraActivity.EXTRA_API_KEY, apiKey)
+        }
+        cameraActivityLauncher.launch(intent)
     }
 
     private fun showCaptureResult(data: Intent) {
@@ -143,7 +177,6 @@ class MainActivity : AppCompatActivity() {
         val serverTimeFmt = SimpleDateFormat("MMM d, yyyy 'at' h:mm:ss a z", Locale.getDefault())
         val capturedAt = captureTimeFmt.format(Date(timestampMs))
 
-        // ── Receipt data is always present in the Intent for both photo and video ──
         val durationMs = data.getLongExtra(CameraActivity.EXTRA_VIDEO_DURATION_MS, 0L)
         val day = data.getStringExtra(CameraActivity.EXTRA_RECEIPT_DAY)
         val hashId = data.getIntExtra(CameraActivity.EXTRA_RECEIPT_HASH_ID, -1).takeIf { it >= 0 }
@@ -191,10 +224,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun onDownloadProofClicked() {
         val hash = lastVerifiedHash ?: return
+        val kit = anchorkit ?: return
         binding.btnDownloadProof.isEnabled = false
         lifecycleScope.launch {
             try {
-                val proof = withContext(Dispatchers.IO) { anchorkit.downloadProof(hash) }
+                val proof = withContext(Dispatchers.IO) { kit.downloadProof(hash) }
                 val json = portableProofToJson(proof)
                 saveProofFile(hash, json)
             } catch (e: AnchorKitError.ApiError) {
@@ -228,8 +262,7 @@ class MainActivity : AppCompatActivity() {
                     Toast.makeText(this@MainActivity, "Proof saved to Downloads/$filename", Toast.LENGTH_LONG).show()
                 }
             } else {
-                val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-                    ?: filesDir
+                val dir = getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: filesDir
                 val file = File(dir, filename)
                 file.writeText(json)
                 withContext(Dispatchers.Main) {
@@ -246,8 +279,6 @@ class MainActivity : AppCompatActivity() {
             for (v in step) stepArray.put(v)
             proofArray.put(stepArray)
         }
-        // Compute derived fields that are not stored in PortableProof but are useful
-        // to include in the exported JSON for human inspection and third-party verification.
         val computedMerkleRoot = io.anchorkit.sdk.SolanaVerifier.computeMerkleRoot(
             proof.hash, proof.merkle_proof
         )
@@ -272,7 +303,6 @@ class MainActivity : AppCompatActivity() {
             if (proof.solana_chunk_index != null) put("solana_chunk_index", proof.solana_chunk_index)
             if (proof.solana_tx != null) put("solana_tx", proof.solana_tx)
             put("chain", proof.chain)
-            // Hardware attestation fields from the verification response
             if (verifyResult?.attestation_verified != null) put("attestation_verified", verifyResult.attestation_verified)
             if (!verifyResult?.cert_fingerprint.isNullOrEmpty()) put("cert_fingerprint", verifyResult!!.cert_fingerprint)
             if (!verifyResult?.cert_valid_from.isNullOrEmpty()) put("cert_valid_from", verifyResult!!.cert_valid_from)
@@ -305,7 +335,7 @@ class MainActivity : AppCompatActivity() {
                 binding.tvPickedHash.text = getString(R.string.hash_label) + "\n" + hash
                 binding.tvPickedHash.visibility = View.VISIBLE
 
-                binding.btnVerify.isEnabled = true
+                binding.btnVerify.isEnabled = anchorkit != null
 
             } catch (e: Exception) {
                 showResult("Could not read photo: ${e.message}")
@@ -320,13 +350,14 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun verifyHash(hash: String) {
+        val kit = anchorkit ?: return
         showTab(Tab.RESULT)
         setLoading(true)
         showResult("")
 
         lifecycleScope.launch {
             try {
-                val result = anchorkit.verify(hash)
+                val result = kit.verify(hash)
 
                 val attestation = if (result.attestation_verified == true) Triple(
                     result.cert_fingerprint,
@@ -452,6 +483,7 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun onSubscribeClicked() {
+        val kit = anchorkit ?: return
         val email = binding.etEmail.text?.toString().orEmpty().trim()
         if (email.isEmpty()) {
             binding.tilEmail.error = "Enter an email address"
@@ -463,7 +495,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                val message = withContext(Dispatchers.IO) { anchorkit.subscribeToNotifications(email) }
+                val message = withContext(Dispatchers.IO) { kit.subscribeToNotifications(email) }
                 showResult(message)
             } catch (e: AnchorKitError.ApiError) {
                 val detail = runCatching {
@@ -481,6 +513,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onUnsubscribeClicked() {
+        val kit = anchorkit ?: return
         val email = binding.etEmail.text?.toString().orEmpty().trim()
         if (email.isEmpty()) {
             binding.tilEmail.error = "Enter the email address to unsubscribe"
@@ -492,7 +525,7 @@ class MainActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                withContext(Dispatchers.IO) { anchorkit.unsubscribeFromNotifications(email) }
+                withContext(Dispatchers.IO) { kit.unsubscribeFromNotifications(email) }
                 showResult("Unsubscribed. $email will no longer receive batch notifications.")
             } catch (e: AnchorKitError.ApiError) {
                 showResult("Could not unsubscribe (${e.statusCode}): ${e.body}")
@@ -511,16 +544,15 @@ class MainActivity : AppCompatActivity() {
     // -------------------------------------------------------------------------
 
     private fun setLoading(loading: Boolean) {
+        val hasKey = anchorkit != null
         binding.progressBar.visibility = if (loading) View.VISIBLE else View.GONE
-        binding.btnCapture.isEnabled = !loading
-        binding.btnPickPhoto.isEnabled = !loading
+        binding.btnCapture.isEnabled = !loading && hasKey
+        binding.btnPickPhoto.isEnabled = !loading && hasKey
         if (loading) binding.btnVerify.isEnabled = false
-        else binding.btnVerify.isEnabled = pickedPhotoHash != null
+        else binding.btnVerify.isEnabled = hasKey && pickedPhotoHash != null
     }
 
-    /** Simple plain-text result — used for errors and short informational messages. */
     private fun showResult(text: String) {
-        // Hide the structured views
         binding.llResultHeader.visibility = View.GONE
         binding.vResultDivider.visibility = View.GONE
         binding.llResultFields.visibility = View.GONE
@@ -539,13 +571,6 @@ class MainActivity : AppCompatActivity() {
         if (text.isNotEmpty()) showTab(Tab.RESULT)
     }
 
-    /**
-     * Structured result card: colored status banner, labeled field rows,
-     * optional attestation badge, and an optional footnote.
-     *
-     * @param fields List of (label, value, isMonospace)
-     * @param attestation Triple of (fingerprint, validFrom, validUntil), or null
-     */
     private fun showStructuredResult(
         headline: String,
         headlineColor: Int,
@@ -560,7 +585,6 @@ class MainActivity : AppCompatActivity() {
         explorerUrl: String? = null,
         downloadHash: String? = null,
     ) {
-        // Header
         binding.tvResultHeadline.text = headline
         binding.tvResultHeadline.setTextColor(headlineColor)
         binding.ivResultIcon.setImageResource(iconRes)
@@ -569,7 +593,6 @@ class MainActivity : AppCompatActivity() {
         binding.llResultHeader.visibility = View.VISIBLE
         binding.vResultDivider.visibility = View.VISIBLE
 
-        // Field rows
         binding.llResultFields.removeAllViews()
         for ((label, value, mono) in fields) {
             addFieldRow(label, value, mono)
@@ -584,10 +607,8 @@ class MainActivity : AppCompatActivity() {
         }
         binding.llResultFields.visibility = View.VISIBLE
 
-        // Hide plain-text fallback
         binding.tvResult.visibility = View.GONE
 
-        // Attestation box
         if (attestation != null) {
             val (fp, from, until) = attestation
             val details = buildString {
@@ -601,7 +622,6 @@ class MainActivity : AppCompatActivity() {
                 binding.tvResultAttestDetails.visibility = View.GONE
             }
 
-            // Bootloader row — derived from attestation_verified; always Locked here
             if (bootloaderLocked != null) {
                 binding.tvResultBootloaderLabel.visibility = View.VISIBLE
                 binding.tvResultBootloaderValue.text = if (bootloaderLocked) "Locked" else "Unlocked"
@@ -622,7 +642,6 @@ class MainActivity : AppCompatActivity() {
             binding.llResultAttestation.visibility = View.GONE
         }
 
-        // Metadata box (device model + dimensions)
         if (deviceModel != null) {
             binding.tvResultMetaDevice.text = deviceModel
             if (dimensions != null) {
@@ -638,7 +657,6 @@ class MainActivity : AppCompatActivity() {
             binding.llResultMetadata.visibility = View.GONE
         }
 
-        // Footnote
         if (footnote != null) {
             binding.tvResultNote.text = footnote
             binding.tvResultNote.visibility = View.VISIBLE
@@ -646,7 +664,6 @@ class MainActivity : AppCompatActivity() {
             binding.tvResultNote.visibility = View.GONE
         }
 
-        // Download proof bundle button — only for blockchain-verified results
         lastVerifiedHash = downloadHash
         binding.btnDownloadProof.visibility = if (downloadHash != null) View.VISIBLE else View.GONE
 
@@ -655,7 +672,6 @@ class MainActivity : AppCompatActivity() {
         showTab(Tab.RESULT)
     }
 
-    /** Appends a label-above-value row where the value is a tappable hyperlink. */
     private fun addLinkRow(label: String, displayValue: String, url: String) {
         val fields = binding.llResultFields
         val density = resources.displayMetrics.density
@@ -708,7 +724,6 @@ class MainActivity : AppCompatActivity() {
         fields.addView(row)
     }
 
-    /** Appends a label-above-value row to the fields container. */
     private fun addFieldRow(label: String, value: String, mono: Boolean = false) {
         val fields = binding.llResultFields
         val density = resources.displayMetrics.density
@@ -777,5 +792,10 @@ class MainActivity : AppCompatActivity() {
             binding.bottomNav.selectedItemId = itemId
             isTabSwitching = false
         }
+    }
+
+    companion object {
+        private const val PREFS_NAME = "anchorkit_prefs"
+        private const val PREF_API_KEY = "api_key"
     }
 }
