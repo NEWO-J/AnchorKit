@@ -6,6 +6,17 @@ plugins {
     id 'signing'
 }
 
+// Configure the signatory early — before any init script or afterEvaluate
+// block registers signing tasks, so Gradle 8.x accepts the in-memory key.
+signing {
+    def key      = findProperty('signingKey')?.toString()
+    def keyId    = findProperty('signingKeyId')?.toString()
+    def password = findProperty('signingPassword')?.toString()
+    if (key) {
+        useInMemoryPgpKeys(keyId, key, password)
+    }
+}
+
 android {
     namespace 'io.anchorkit.sdk'
     compileSdk 34
@@ -110,11 +121,6 @@ afterEvaluate {
     }
 
     signing {
-        useInMemoryPgpKeys(
-            project.findProperty('signingKeyId') ?: '',
-            project.findProperty('signingKey') ?: '',
-            project.findProperty('signingPassword') ?: ''
-        )
         sign publishing.publications.release
     }
 }
