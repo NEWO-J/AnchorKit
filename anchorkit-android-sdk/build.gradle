@@ -39,13 +39,6 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    publishing {
-        singleVariant('release') {
-            withSourcesJar()
-            withJavadocJar()
-        }
-    }
 }
 
 dependencies {
@@ -65,7 +58,7 @@ dependencies {
 }
 
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, "anchorkit-sdk-${sdkVersion}", true)
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
 
     coordinates('net.anchorkit', 'anchorkit-sdk', sdkVersion)
