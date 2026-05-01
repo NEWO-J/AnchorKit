@@ -10,6 +10,8 @@ jobs:
   build:
     name: Assemble debug APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -30,9 +32,27 @@ jobs:
         env:
           ANCHORKIT_BASE_URL: ${{ secrets.ANCHORKIT_BASE_URL }}
 
-      - name: Upload APK artifact
+      # On PRs: upload as a workflow artifact only
+      - name: Upload artifact (PR builds)
+        if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: demo-app-debug
           path: demo-app/build/outputs/apk/debug/demo-app-debug.apk
           retention-days: 14
+
+      # On main: create/update the rolling "latest" release
+      - name: Publish to GitHub Releases
+        if: github.ref == 'refs/heads/main'
+        uses: ncipollo/release-action@v1
+        with:
+          tag: latest
+          name: "Latest Build"
+          body: |
+            Automatically built from `main`.
+            Commit: ${{ github.sha }}
+          prerelease: true
+          allowUpdates: true
+          removeArtifacts: true
+          artifacts: demo-app/build/outputs/apk/debug/demo-app-debug.apk
+          token: ${{ secrets.GITHUB_TOKEN }}
