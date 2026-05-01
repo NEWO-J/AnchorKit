@@ -8,6 +8,8 @@ plugins {
     id 'com.vanniktech.maven.publish'
 }
 
+def sdkVersion = '1.0.3'
+
 android {
     namespace 'io.anchorkit.sdk'
     compileSdk 34
@@ -58,10 +60,10 @@ dependencies {
 
 mavenPublishing {
     configure(new AndroidSingleVariantLibrary("release", true, true))
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, "anchorkit-sdk-${sdkVersion}")
     signAllPublications()
 
-    coordinates('net.anchorkit', 'anchorkit-sdk', '1.0.3')
+    coordinates('net.anchorkit', 'anchorkit-sdk', sdkVersion)
 
     pom {
         name = 'AnchorKit Android SDK'
