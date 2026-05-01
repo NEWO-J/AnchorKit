@@ -25,3 +25,7 @@
 # BouncyCastle (Ed25519 point validation for Solana PDA derivation)
 -keep class org.bouncycastle.** { *; }
 -dontwarn org.bouncycastle.**
+
+# JVM string concatenation class not present on Android — R8 rewrites these
+# invokedynamic instructions to Android-compatible bytecode automatically.
+-dontwarn java.lang.invoke.StringConcatFactory
