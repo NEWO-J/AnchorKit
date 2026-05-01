@@ -6,8 +6,8 @@ plugins {
     id 'signing'
 }
 
-// Configure the signatory early — before any init script or afterEvaluate
-// block registers signing tasks, so Gradle 8.x accepts the in-memory key.
+// Configure the signatory early — before any afterEvaluate block registers
+// signing tasks, so Gradle 8.x accepts the in-memory key.
 signing {
     def key      = findProperty('signingKey')?.toString()
     def keyId    = findProperty('signingKeyId')?.toString()
@@ -29,7 +29,7 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true  // M-1: obfuscate SDK internals in release builds
+            minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -109,13 +109,11 @@ afterEvaluate {
         }
 
         repositories {
+            // Publishes a proper Maven layout with checksums to a local directory.
+            // ZIP the output and upload to https://central.sonatype.com/publishing/deployments
             maven {
-                name = 'sonatype'
-                url  = 'https://central.sonatype.com/api/v1/publisher/upload'
-                credentials {
-                    username = project.findProperty('sonatypeUsername') ?: ''
-                    password = project.findProperty('sonatypePassword') ?: ''
-                }
+                name = 'LocalBundle'
+                url  = uri("${layout.buildDirectory.get()}/bundle")
             }
         }
     }
