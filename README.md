@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-1.0.1-blue"/>
+  <a href="https://central.sonatype.com/artifact/net.anchorkit/anchorkit-sdk"><img alt="Maven Central" src="https://img.shields.io/maven-central/v/net.anchorkit/anchorkit-sdk?label=Maven%20Central"/></a>
   <img alt="API Level" src="https://img.shields.io/badge/API-24%2B-brightgreen"/>
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-2.1.0-purple?logo=kotlin"/>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green"/>
@@ -71,3 +71,33 @@
 > but its only supplmentary information, everything you see should be taken with a healthy amount of skepticism.
 > 
 ## Installation
+
+AnchorKit is published to Maven Central. Add the dependency to your app-level `build.gradle`:
+
+```groovy
+dependencies {
+    implementation 'net.anchorkit:anchorkit-sdk:1.0.1'
+}
+```
+
+Or with Kotlin DSL (`build.gradle.kts`):
+
+```kotlin
+dependencies {
+    implementation("net.anchorkit:anchorkit-sdk:1.0.1")
+}
+```
+
+No extra repository block is needed — `mavenCentral()` is already included in the default Android project template.
+
+> [!TIP]
+> Check [Maven Central](https://central.sonatype.com/artifact/net.anchorkit/anchorkit-sdk) for the latest version.
+
+### Permissions
+
+Add to your `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.INTERNET" />
+```
