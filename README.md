@@ -125,7 +125,7 @@ binding.btnShutter.setOnClickListener {
         try {
             val result = anchorKit.captureAndSubmit(lifecycleOwner = this@CameraActivity)
 
-            val hash = result.photo.hash       // SHA-256 of the captured image / video
+            val hash = result.photo.hash       // SHA-256 of the captured image
             val receipt = result.receipt       // server confirmation
             showSuccess(hash)
         } catch (e: AnchorKitError.DeviceIntegrityError) {
