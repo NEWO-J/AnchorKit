@@ -61,7 +61,7 @@ mavenPublishing {
     publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()
 
-    coordinates('net.anchorkit', 'anchorkit-sdk', '1.0.2')
+    coordinates('net.anchorkit', 'anchorkit-sdk', '1.0.3')
 
     pom {
         name = 'AnchorKit Android SDK'
