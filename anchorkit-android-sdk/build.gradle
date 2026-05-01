@@ -1,4 +1,5 @@
 import com.vanniktech.maven.publish.SonatypeHost
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
 
 plugins {
     id 'com.android.library'
@@ -58,7 +59,8 @@ dependencies {
 }
 
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    configure(new AndroidSingleVariantLibrary("release", true, true))
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL, "anchorkit-sdk-${sdkVersion}", true)
     signAllPublications()
 
     coordinates('net.anchorkit', 'anchorkit-sdk', sdkVersion)
