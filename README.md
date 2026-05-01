@@ -139,19 +139,6 @@ binding.btnShutter.setOnClickListener {
 }
 ```
 
-### Split capture and submit
-
-If you need to capture first and submit later (e.g. show a preview before confirming), use the two-step API:
-
-```kotlin
-// Step 1 — capture in your camera screen
-val photo = anchorKit.capturePhoto(lifecycleOwner = this)
-showPreview(photo.data)
-
-// Step 2 — submit after the user confirms
-val receipt = anchorKit.submitPhoto(photo)
-```
-
 ### Verify a photo
 
 ```kotlin
