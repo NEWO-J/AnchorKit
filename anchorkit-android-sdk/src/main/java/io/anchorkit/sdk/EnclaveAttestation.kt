@@ -14,8 +14,8 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.cert.X509Certificate
 import java.security.spec.ECGenParameterSpec
+import java.security.SecureRandom
 import java.util.Date
-import java.util.UUID
 
 /**
  * Handles hardware-backed key attestation using the Android Keystore.
@@ -93,9 +93,9 @@ object EnclaveAttestation {
 
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey
-            ?: throw AnchorKitError.AttestationError("Failed to retrieve attestation key from Keystore — key may have been deleted or corrupted")
+            ?: throw AnchorKitError.KeyCorruptedError("Attestation key missing from Keystore — delete and regenerate")
         val certChain = keyStore.getCertificateChain(KEY_ALIAS)
-            ?: throw AnchorKitError.AttestationError("Certificate chain unavailable — key may not be hardware-backed")
+            ?: throw AnchorKitError.HardwareNotAvailableError("Certificate chain unavailable — device may not support hardware-backed attestation")
 
         val signatureBytes = Signature.getInstance(ALGORITHM).run {
             initSign(privateKey)
@@ -103,9 +103,18 @@ object EnclaveAttestation {
             sign()
         }
 
+        // M-2: Android Keystore returns the chain leaf-first in practice, but enforce
+        // it explicitly so the server's leaf-at-index-0 assumption is always correct.
+        val orderedChain = certChain.toList().let { chain ->
+            val leaf = keyStore.getCertificate(KEY_ALIAS) as? X509Certificate
+            if (leaf != null && chain.isNotEmpty() && chain[0] != leaf) {
+                listOf(leaf) + chain.filter { it != leaf }
+            } else chain
+        }
+
         // Encode cert chain as a JSON array of Base64 DER strings, then Base64 the whole thing
         val certArray = JSONArray().apply {
-            certChain.forEach { cert ->
+            orderedChain.forEach { cert ->
                 put(Base64.encodeToString(cert.encoded, Base64.NO_WRAP))
             }
         }
@@ -193,11 +202,18 @@ object EnclaveAttestation {
     }
 
     private fun generateKey(context: Context) {
-        val challenge = getOrCreateChallenge(context)
+        // C-1: Generate a fresh 32-byte challenge for every key generation using
+        // SecureRandom rather than reusing a stored singleton. This ensures each
+        // attestation certificate is bound to a unique, unpredictable challenge.
+        val challengeBytes = ByteArray(32).also { SecureRandom().nextBytes(it) }
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(PREF_CHALLENGE, Base64.encodeToString(challengeBytes, Base64.NO_WRAP))
+            .apply()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             try {
-                buildKey(challenge, strongBox = true)
+                buildKey(challengeBytes, strongBox = true)
                 return
             } catch (_: StrongBoxUnavailableException) {
                 // Device has no StrongBox; fall through to TEE
@@ -206,7 +222,7 @@ object EnclaveAttestation {
             }
         }
 
-        buildKey(challenge, strongBox = false)
+        buildKey(challengeBytes, strongBox = false)
     }
 
     private fun buildKey(challenge: ByteArray, strongBox: Boolean) {
@@ -231,17 +247,10 @@ object EnclaveAttestation {
         }
     }
 
-    private fun getOrCreateChallenge(context: Context): ByteArray {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val existing = prefs.getString(PREF_CHALLENGE, null)
-        if (existing != null) {
-            return Base64.decode(existing, Base64.NO_WRAP)
-        }
-        val challenge = UUID.randomUUID().toString().toByteArray(Charsets.UTF_8)
-        prefs.edit().putString(
-            PREF_CHALLENGE,
-            Base64.encodeToString(challenge, Base64.NO_WRAP)
-        ).apply()
-        return challenge
+    /** Return the challenge that was embedded in the most recently generated key, if any. */
+    fun getStoredChallenge(context: Context): ByteArray? {
+        val stored = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(PREF_CHALLENGE, null) ?: return null
+        return Base64.decode(stored, Base64.NO_WRAP)
     }
 }

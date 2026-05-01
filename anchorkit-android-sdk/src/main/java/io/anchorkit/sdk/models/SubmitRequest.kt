@@ -5,11 +5,11 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class SubmitRequest(
     val hash: String,
-    val api_key: String,
     val nonce: String,
     val enclave_signature: String,
     val device_attestation: String,
     val metadata: Map<String, String> = emptyMap()
+    // api_key removed — auth is now via Authorization: Bearer header (H-2)
 )
 
 @Serializable
