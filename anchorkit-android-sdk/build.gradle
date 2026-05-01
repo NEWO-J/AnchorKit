@@ -1,9 +1,10 @@
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     id 'com.android.library'
     id 'org.jetbrains.kotlin.android'
     id 'org.jetbrains.kotlin.plugin.serialization'
-    id 'maven-publish'
-    id 'signing'
+    id 'com.vanniktech.maven.publish'
 }
 
 android {
@@ -36,12 +37,6 @@ android {
     kotlinOptions {
         jvmTarget = '17'
     }
-
-    publishing {
-        singleVariant('release') {
-            withSourcesJar()
-        }
-    }
 }
 
 dependencies {
@@ -60,54 +55,34 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            release(MavenPublication) {
-                from components.release
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    signAllPublications()
 
-                groupId    = 'net.anchorkit'
-                artifactId = 'anchorkit-sdk'
-                version    = '1.0.2'
+    coordinates('net.anchorkit', 'anchorkit-sdk', '1.0.2')
 
-                pom {
-                    name        = 'AnchorKit Android SDK'
-                    description = 'Hardware-attested photo provenance SDK for Android. Cryptographically binds photos to the device that captured them, anchored to Solana.'
-                    url         = 'https://anchorkit.net'
+    pom {
+        name = 'AnchorKit Android SDK'
+        description = 'Hardware-attested photo provenance SDK for Android. Cryptographically binds photos to the device that captured them, anchored to Solana.'
+        url = 'https://anchorkit.net'
 
-                    licenses {
-                        license {
-                            name = 'MIT License'
-                            url  = 'https://opensource.org/licenses/MIT'
-                        }
-                    }
-                    developers {
-                        developer {
-                            id   = 'newo-j'
-                            name = 'Jonah Owen'
-                            url  = 'https://github.com/newo-j'
-                        }
-                    }
-                    scm {
-                        connection          = 'scm:git:git://github.com/newo-j/anchorkit.git'
-                        developerConnection = 'scm:git:ssh://github.com/newo-j/anchorkit.git'
-                        url                 = 'https://github.com/newo-j/anchorkit'
-                    }
-                }
+        licenses {
+            license {
+                name = 'MIT License'
+                url = 'https://opensource.org/licenses/MIT'
             }
         }
-
-        repositories {
-            // Publishes a proper Maven layout with checksums to a local directory.
-            // ZIP the output and upload via CLI to Maven Central.
-            maven {
-                name = 'LocalBundle'
-                url  = uri("${layout.buildDirectory.get()}/bundle")
+        developers {
+            developer {
+                id = 'newo-j'
+                name = 'Jonah Owen'
+                url = 'https://github.com/newo-j'
             }
         }
-    }
-
-    signing {
-        sign publishing.publications.release
+        scm {
+            connection = 'scm:git:git://github.com/newo-j/anchorkit.git'
+            developerConnection = 'scm:git:ssh://github.com/newo-j/anchorkit.git'
+            url = 'https://github.com/newo-j/anchorkit'
+        }
     }
 }
