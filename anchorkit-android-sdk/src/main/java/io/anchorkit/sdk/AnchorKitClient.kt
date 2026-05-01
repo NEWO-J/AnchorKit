@@ -140,7 +140,7 @@ class AnchorKitClient(
      * @throws AnchorKitError.ApiError on non-2xx responses
      */
     suspend fun fetchChallenge(): AttestationChallenge = withContext(Dispatchers.IO) {
-        val connection = openConnection("$baseUrl/api/attestation-challenge", "GET")
+        val connection = openConnection("$baseUrl/v1/attestation-challenge", "GET")
         try {
             readResponse<AttestationChallenge>(connection)
         } catch (e: AnchorKitError) {
@@ -179,7 +179,7 @@ class AnchorKitClient(
             metadata = metadata
         )
 
-        val connection = openConnection("$baseUrl/api/submit-hash", "POST")
+        val connection = openConnection("$baseUrl/v1/submit-hash", "POST")
         try {
             connection.outputStream.use { it.write(json.encodeToString(request).toByteArray()) }
             readResponse<VerificationReceipt>(connection)
@@ -201,7 +201,7 @@ class AnchorKitClient(
      * @throws AnchorKitError.ApiError on non-2xx responses
      */
     suspend fun verifyHash(hash: String): VerificationResult = withContext(Dispatchers.IO) {
-        val connection = openConnection("$baseUrl/api/verify-hash/${hash.lowercase()}", "GET")
+        val connection = openConnection("$baseUrl/v1/verify-hash/${hash.lowercase()}", "GET")
         try {
             readResponse<VerificationResult>(connection)
         } catch (e: AnchorKitError) {
@@ -227,7 +227,7 @@ class AnchorKitClient(
         @Serializable
         data class SubscribeResponse(val message: String, val email: String)
 
-        val connection = openConnection("$baseUrl/api/notifications/subscribe", "POST")
+        val connection = openConnection("$baseUrl/v1/notifications/subscribe", "POST")
         try {
             val body = json.encodeToString(SubscribeRequest(email = email, api_key = apiKey))
             connection.outputStream.use { it.write(body.toByteArray()) }
@@ -252,7 +252,7 @@ class AnchorKitClient(
         @Serializable
         data class UnsubscribeRequest(val email: String, val api_key: String)
 
-        val connection = openConnection("$baseUrl/api/notifications/unsubscribe-api", "POST")
+        val connection = openConnection("$baseUrl/v1/notifications/unsubscribe-api", "POST")
         try {
             val body = json.encodeToString(UnsubscribeRequest(email = email, api_key = apiKey))
             connection.outputStream.use { it.write(body.toByteArray()) }
@@ -281,7 +281,7 @@ class AnchorKitClient(
      * @throws AnchorKitError.ApiError on non-2xx responses (404 = not yet anchored)
      */
     suspend fun downloadProof(hash: String): PortableProof = withContext(Dispatchers.IO) {
-        val connection = openConnection("$baseUrl/api/proof/${hash.lowercase()}", "GET")
+        val connection = openConnection("$baseUrl/v1/proof/${hash.lowercase()}", "GET")
         try {
             readResponse<PortableProof>(connection)
         } catch (e: AnchorKitError) {
