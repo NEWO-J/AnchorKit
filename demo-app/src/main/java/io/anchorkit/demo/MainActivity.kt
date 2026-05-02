@@ -121,6 +121,8 @@ class MainActivity : AppCompatActivity() {
         binding.tvApiKeySignupLink.text = signupMsg
         binding.tvApiKeySignupLink.movementMethod = LinkMovementMethod.getInstance()
         binding.tvApiKeySignupLink.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+
+        updateActionButtons()
     }
 
     // -------------------------------------------------------------------------
@@ -154,6 +156,9 @@ class MainActivity : AppCompatActivity() {
         binding.btnCapture.isEnabled = hasKey
         binding.btnPickPhoto.isEnabled = hasKey
         binding.btnVerify.isEnabled = hasKey && pickedPhotoHash != null
+        val lockVisibility = if (hasKey) View.GONE else View.VISIBLE
+        binding.lockIndicatorCapture.visibility = lockVisibility
+        binding.lockIndicatorVerify.visibility = lockVisibility
     }
 
     // -------------------------------------------------------------------------
