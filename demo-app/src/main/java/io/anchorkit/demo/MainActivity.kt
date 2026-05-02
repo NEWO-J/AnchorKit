@@ -12,6 +12,10 @@ import android.graphics.Typeface
 import android.net.Uri
 import android.os.Environment
 import android.provider.MediaStore
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.URLSpan
 import android.view.View
 import android.os.Bundle
 import android.widget.LinearLayout
@@ -109,6 +113,14 @@ class MainActivity : AppCompatActivity() {
                 else -> false
             }
         }
+
+        val signupMsg = SpannableString("Don’t have a key? Sign up at anchorkit.net")
+        val linkStart = signupMsg.indexOf("anchorkit.net")
+        val linkEnd = linkStart + "anchorkit.net".length
+        signupMsg.setSpan(URLSpan("https://anchorkit.net/signup"), linkStart, linkEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        binding.tvApiKeySignupLink.text = signupMsg
+        binding.tvApiKeySignupLink.movementMethod = LinkMovementMethod.getInstance()
+        binding.tvApiKeySignupLink.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
     }
 
     // -------------------------------------------------------------------------
