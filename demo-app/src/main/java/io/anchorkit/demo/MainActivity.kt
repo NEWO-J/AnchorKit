@@ -20,8 +20,10 @@ import android.view.View
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.graphics.Color
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
+import com.google.android.material.textfield.TextInputLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -99,7 +101,6 @@ class MainActivity : AppCompatActivity() {
         binding.tilApiKey.setBoxStrokeColorStateList(ColorStateList(strokeStates, strokeColors))
 
         binding.btnSaveApiKey.setOnClickListener { onSaveApiKeyClicked() }
-        binding.btnClearApiKey.setOnClickListener { onClearApiKeyClicked() }
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
@@ -167,13 +168,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateApiKeyUiState(hasKey: Boolean) {
         binding.btnSaveApiKey.visibility = if (hasKey) View.GONE else View.VISIBLE
-        binding.btnClearApiKey.visibility = if (hasKey) View.VISIBLE else View.GONE
+        binding.cardApiKey.alpha = if (hasKey) 0.5f else 1.0f
         binding.etApiKey.isFocusable = !hasKey
         binding.etApiKey.isFocusableInTouchMode = !hasKey
         if (hasKey) {
+            binding.tilApiKey.endIconMode = TextInputLayout.END_ICON_CUSTOM
+            binding.tilApiKey.setEndIconDrawable(R.drawable.ic_close)
+            binding.tilApiKey.setEndIconContentDescription(R.string.btn_clear_api_key)
+            binding.tilApiKey.setEndIconOnClickListener { onClearApiKeyClicked() }
+            binding.tilApiKey.setBoxStrokeColorStateList(ColorStateList.valueOf(Color.TRANSPARENT))
             binding.etApiKey.clearFocus()
             val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
             imm.hideSoftInputFromWindow(binding.root.windowToken, 0)
+        } else {
+            binding.tilApiKey.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
+            val orange = ContextCompat.getColor(this, R.color.primary)
+            val strokeStates = arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf())
+            binding.tilApiKey.setBoxStrokeColorStateList(ColorStateList(strokeStates, intArrayOf(orange, orange)))
         }
     }
 
