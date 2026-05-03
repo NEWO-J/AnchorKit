@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import io.anchorkit.demo.databinding.ActivityMainBinding
 import io.anchorkit.sdk.AnchorKit
+import io.anchorkit.sdk.AnchorKitClient
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.HashUtils
 import io.anchorkit.sdk.models.PortableProof
@@ -148,12 +149,38 @@ class MainActivity : AppCompatActivity() {
             binding.tilApiKey.error = "Enter an API key"
             return
         }
+        if (!key.matches(Regex("^ak_[0-9a-f]{64}$"))) {
+            binding.tilApiKey.error = "Invalid API key format"
+            return
+        }
         binding.tilApiKey.error = null
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putString(PREF_API_KEY, key).apply()
-        initAnchorKit(key)
-        updateApiKeyUiState(true)
-        Toast.makeText(this, "API key saved", Toast.LENGTH_SHORT).show()
+        binding.btnSaveApiKey.isEnabled = false
+        binding.btnSaveApiKey.text = "Validating…"
+        lifecycleScope.launch {
+            try {
+                val valid = AnchorKitClient(key, BuildConfig.ANCHORKIT_BASE_URL).validateKey()
+                if (valid) {
+                    getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+                        .edit().putString(PREF_API_KEY, key).apply()
+                    initAnchorKit(key)
+                    updateApiKeyUiState(true)
+                    Toast.makeText(this@MainActivity, "API key saved", Toast.LENGTH_SHORT).show()
+                } else {
+                    binding.tilApiKey.error = "API key not found or inactive"
+                    binding.btnSaveApiKey.isEnabled = true
+                    binding.btnSaveApiKey.text = getString(R.string.btn_save_api_key)
+                }
+            } catch (e: AnchorKitError.ApiError) {
+                binding.tilApiKey.error = if (e.statusCode == 401) "API key not found or inactive"
+                                           else "Validation failed (${e.statusCode})"
+                binding.btnSaveApiKey.isEnabled = true
+                binding.btnSaveApiKey.text = getString(R.string.btn_save_api_key)
+            } catch (e: AnchorKitError) {
+                binding.tilApiKey.error = "Could not validate key — check your connection"
+                binding.btnSaveApiKey.isEnabled = true
+                binding.btnSaveApiKey.text = getString(R.string.btn_save_api_key)
+            }
+        }
     }
 
     private fun onClearApiKeyClicked() {

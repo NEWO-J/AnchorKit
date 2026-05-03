@@ -128,6 +128,23 @@ class AnchorKitClient(
     // -------------------------------------------------------------------------
 
     /**
+     * Check whether this client's API key is valid and active.
+     *
+     * @return true if the server accepts the key, false if it returns 401
+     * @throws AnchorKitError.NetworkError on I/O failures
+     */
+    suspend fun validateKey(): Boolean = withContext(Dispatchers.IO) {
+        val connection = openConnection("$baseUrl/api/v1/keys/validate", "GET")
+        try {
+            connection.responseCode in 200..299
+        } catch (e: IOException) {
+            throw AnchorKitError.NetworkError("Failed to validate key: ${e.message}", e)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
      * Fetch a single-use attestation challenge nonce from the server.
      *
      * Must be called immediately before [submitHash]. The nonce is embedded

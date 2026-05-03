@@ -162,6 +162,17 @@ class AnchorKit(
     }
 
     /**
+     * Check whether this instance's API key is valid and active on the server.
+     *
+     * Call this before storing a newly entered key to give users immediate
+     * feedback if the key is wrong or inactive.
+     *
+     * @return true if the key is accepted, false if the server returns 401
+     * @throws AnchorKitError.NetworkError on connectivity failures
+     */
+    suspend fun validateKey(): Boolean = client.validateKey()
+
+    /**
      * Verify whether a hash has been anchored to the blockchain.
      *
      * @throws AnchorKitError.NetworkError on connectivity failures
