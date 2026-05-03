@@ -18,15 +18,15 @@ echo ""
 
 # ── Clean previous build artifacts ─────────────────────────────────────────
 echo "==> Cleaning previous build..."
-rm -rf "$SCRIPT_DIR/anchorkit-android-sdk/build"
+rm -rf "$SCRIPT_DIR/demo-app/build"
 
-# ── Build release AAR ───────────────────────────────────────────────────────
-echo "==> Building anchorkit-sdk-${VERSION}..."
+# ── Build debug APK ─────────────────────────────────────────────────────────
+echo "==> Building demo app APK..."
 echo ""
 cd "$SCRIPT_DIR"
-./gradlew :anchorkit-android-sdk:assembleRelease
+./gradlew :demo-app:assembleDebug
 
-AAR="$SCRIPT_DIR/anchorkit-android-sdk/build/outputs/aar/anchorkit-android-sdk-release.aar"
+APK="$SCRIPT_DIR/demo-app/build/outputs/apk/debug/demo-app-debug.apk"
 echo ""
 echo "==> Build complete."
-echo "    AAR: $AAR"
+echo "    APK: $APK"
