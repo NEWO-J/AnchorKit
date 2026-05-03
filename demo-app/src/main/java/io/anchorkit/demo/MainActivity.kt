@@ -168,7 +168,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateApiKeyUiState(hasKey: Boolean) {
         binding.btnSaveApiKey.visibility = if (hasKey) View.GONE else View.VISIBLE
-        binding.cardApiKey.alpha = if (hasKey) 0.5f else 1.0f
+        val dimAlpha = if (hasKey) 0.4f else 1.0f
+        binding.tvApiKeyTitle.alpha = dimAlpha
+        binding.tvApiKeyDesc.alpha = dimAlpha
+        binding.tvApiKeySignupLink.alpha = dimAlpha
         binding.etApiKey.isFocusable = !hasKey
         binding.etApiKey.isFocusableInTouchMode = !hasKey
         if (hasKey) {
