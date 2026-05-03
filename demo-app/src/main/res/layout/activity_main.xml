@@ -112,6 +112,22 @@
                             android:textAllCaps="false"
                             app:cornerRadius="8dp" />
 
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnClearApiKey"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_gravity="end"
+                            android:insetTop="0dp"
+                            android:insetBottom="0dp"
+                            android:text=""
+                            android:contentDescription="@string/btn_clear_api_key"
+                            app:icon="@drawable/ic_close"
+                            app:iconGravity="textStart"
+                            app:iconPadding="0dp"
+                            app:cornerRadius="8dp"
+                            android:visibility="gone" />
+
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
