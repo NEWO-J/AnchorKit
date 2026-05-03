@@ -95,6 +95,7 @@
                             android:layout_height="wrap_content"
                             android:hint="@string/api_key_hint"
                             app:endIconMode="password_toggle"
+                            app:errorIconDrawable="@null"
                             android:layout_marginBottom="12dp">
 
                             <com.google.android.material.textfield.TextInputEditText
