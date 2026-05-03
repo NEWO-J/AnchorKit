@@ -7,6 +7,7 @@
     <string name="api_key_desc">Enter your AnchorKit API key to capture and verify photos.</string>
     <string name="api_key_hint">Paste your API key</string>
     <string name="btn_save_api_key">Save</string>
+    <string name="btn_clear_api_key">Remove API key</string>
 
     <string name="capture_title">Capture &amp; Submit</string>
     <string name="capture_desc">Take a photo. Its SHA-256 hash will be signed by this device\'s hardware security chip and submitted to the AnchorKit API for nightly anchoring on the Solana blockchain.</string>

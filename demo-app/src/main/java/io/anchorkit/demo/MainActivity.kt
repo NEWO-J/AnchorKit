@@ -20,6 +20,7 @@ import android.view.View
 import android.os.Bundle
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -88,6 +89,7 @@ class MainActivity : AppCompatActivity() {
         if (savedKey.isNotEmpty()) {
             binding.etApiKey.setText(savedKey)
             initAnchorKit(savedKey)
+            updateApiKeyUiState(true)
         }
 
         val orange = ContextCompat.getColor(this, R.color.primary)
@@ -97,6 +99,7 @@ class MainActivity : AppCompatActivity() {
         binding.tilApiKey.setBoxStrokeColorStateList(ColorStateList(strokeStates, strokeColors))
 
         binding.btnSaveApiKey.setOnClickListener { onSaveApiKeyClicked() }
+        binding.btnClearApiKey.setOnClickListener { onClearApiKeyClicked() }
         binding.btnCapture.setOnClickListener { onCaptureClicked() }
         binding.btnPickPhoto.setOnClickListener { photoPickerLauncher.launch("image/*") }
         binding.btnVerify.setOnClickListener { onVerifyClicked() }
@@ -148,7 +151,30 @@ class MainActivity : AppCompatActivity() {
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString(PREF_API_KEY, key).apply()
         initAnchorKit(key)
+        updateApiKeyUiState(true)
         Toast.makeText(this, "API key saved", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun onClearApiKeyClicked() {
+        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().remove(PREF_API_KEY).apply()
+        anchorkit = null
+        binding.etApiKey.setText("")
+        updateApiKeyUiState(false)
+        updateActionButtons()
+        binding.etApiKey.requestFocus()
+    }
+
+    private fun updateApiKeyUiState(hasKey: Boolean) {
+        binding.btnSaveApiKey.visibility = if (hasKey) View.GONE else View.VISIBLE
+        binding.btnClearApiKey.visibility = if (hasKey) View.VISIBLE else View.GONE
+        binding.etApiKey.isFocusable = !hasKey
+        binding.etApiKey.isFocusableInTouchMode = !hasKey
+        if (hasKey) {
+            binding.etApiKey.clearFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(binding.root.windowToken, 0)
+        }
     }
 
     private fun updateActionButtons() {
