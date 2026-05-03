@@ -63,6 +63,7 @@
                         android:padding="20dp">
 
                         <TextView
+                            android:id="@+id/tvApiKeyTitle"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/api_key_title"
@@ -72,6 +73,7 @@
                             android:layout_marginBottom="6dp" />
 
                         <TextView
+                            android:id="@+id/tvApiKeyDesc"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/api_key_desc"
