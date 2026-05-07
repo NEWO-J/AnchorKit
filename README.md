@@ -35,17 +35,17 @@
 > None of your photos or videos are stored within, or sent to AnchorKit, only 32 byte hash representations.
 
 ## How It Compares
-| Property | C2PA | Truepic Lens | IPTC Metadata | Numbers Protocol | AnchorKit |
-| --- | --- | --- | --- | --- | --- |
-| **Signing environment** | Any software or HSM with C2PA credential | TEE (Qualcomm) | None | Any software | TEE or StrongBox on capture device |
-| **Hardware key generation enforced** | No | Yes | No | No | Yes — origin = GENERATED enforced |
-| **Verified boot enforced** | No | Not independently verifiable | No | No | Yes — verifiedBootState = Verified enforced |
-| **Post-capture signing possible** | Yes | No | Yes | Yes | No — nonce expires in 5 min |
-| **Attestation CA** | C2PA-accredited CA (operator-controlled) | Truepic CA | None | None | Google attestation root CA |
-| **Blockchain anchoring** | No | No | No | Yes (Ethereum-compatible) | Yes (Solana mainnet) |
-| **Offline verification** | No — requires centralised service | No — requires Truepic service | No | Partial | Yes — SHA-256 + Solana RPC only |
-| **Strippable by image processing** | Yes — manifest embedded in file | Yes — C2PA manifest | Yes | No — hash-based | No — hash-based |
-| **Retroactive forgery after key compromise** | Yes — can backdate manifests | Yes | N/A | Yes | No — past blockchain records are immutable |
+| Property | Truepic Lens | IPTC Metadata | Numbers Protocol | AnchorKit |
+| :--- | :--- | :--- | :--- | :--- |
+| **Signing environment** | TEE (Qualcomm) | None | Any software | TEE or StrongBox on capture device |
+| **Hardware key generation enforced** | Yes | No | No | Yes — origin = GENERATED enforced |
+| **Verified boot enforced** | Not independently verifiable | No | No | Yes — verifiedBootState = Verified enforced |
+| **Post-capture signing possible** | No | Yes | Yes | No — nonce expires in 5 min |
+| **Attestation CA** | Truepic CA | None | None | Google attestation root CA |
+| **Blockchain anchoring** | No | No | Yes (Ethereum-compatible) | Yes (Solana mainnet) |
+| **Offline verification** | No — requires Truepic service | No | Partial | Yes — SHA-256 + Solana RPC only |
+| **Strippable by image processing** | Yes — C2PA manifest | Yes | No — hash-based | No — hash-based |
+| **Retroactive forgery after key compromise** | Yes | N/A | Yes | No — past blockchain records are immutable |
 
 ## Anchor Demo
 > [!NOTE]
