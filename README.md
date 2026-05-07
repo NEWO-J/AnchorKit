@@ -48,7 +48,6 @@
 | **Retroactive forgery after key compromise** | Yes — can backdate manifests | Yes | N/A | Yes | No — past blockchain records are immutable |
 
 ## Anchor Demo
-- Insert GIF here - 
 > [!NOTE]
 > The demo app is rate-limited, for full usage of AnchorKit, you can register for a free API key and integrate it into your application.
 
