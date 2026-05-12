@@ -638,7 +638,7 @@
                             android:textColor="@color/text_secondary"
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             app:backgroundTint="@color/surface"
-                            app:strokeColor="@color/text_secondary"
+                            app:strokeColor="#7F94A3B8"
                             app:cornerRadius="8dp"
                             android:layout_marginStart="20dp"
                             android:layout_marginEnd="20dp"
