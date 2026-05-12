@@ -184,13 +184,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onClearApiKeyClicked() {
-        // Put the field back into edit mode without clearing the saved key.
+        anchorkit = null
         updateApiKeyUiState(false)
+        updateActionButtons()
         binding.etApiKey.requestFocus()
     }
 
     private fun updateApiKeyUiState(hasKey: Boolean) {
         binding.btnSaveApiKey.visibility = if (hasKey) View.GONE else View.VISIBLE
+        if (!hasKey) {
+            binding.btnSaveApiKey.isEnabled = true
+            binding.btnSaveApiKey.text = getString(R.string.btn_save_api_key)
+        }
         val dimAlpha = if (hasKey) 0.4f else 1.0f
         binding.tvApiKeyTitle.alpha = dimAlpha
         binding.tvApiKeyDesc.alpha = dimAlpha
