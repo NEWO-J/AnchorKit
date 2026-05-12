@@ -11,11 +11,11 @@
 
     <string name="capture_title">Capture &amp; Submit</string>
     <string name="capture_desc">Take a photo or video. Its SHA-256 hash will be signed by this device\'s hardware security chip and submitted to the AnchorKit API for nightly anchoring on the Solana blockchain.</string>
-    <string name="btn_capture">Capture Photo / Video &amp; Submit</string>
+    <string name="btn_capture">Capture &amp; Submit</string>
 
     <string name="verify_title">Verify a Photo / Video</string>
     <string name="verify_desc">Pick a photo or video from your gallery. The app will compute its SHA-256 hash and check whether it has been anchored to the Solana blockchain.</string>
-    <string name="btn_pick_photo">Pick Photo / Video from Gallery</string>
+    <string name="btn_pick_photo">Pick from Gallery</string>
     <string name="btn_verify">Verify on Blockchain</string>
     <string name="hash_label">SHA-256 hash:</string>
 
