@@ -33,7 +33,7 @@ import io.anchorkit.sdk.AnchorKit
 import io.anchorkit.sdk.AnchorKitClient
 import io.anchorkit.sdk.AnchorKitError
 import io.anchorkit.sdk.HashUtils
-import io.anchorkit.sdk.models.PortableProof
+
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -184,12 +184,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onClearApiKeyClicked() {
-        getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().remove(PREF_API_KEY).apply()
-        anchorkit = null
-        binding.etApiKey.setText("")
+        // Put the field back into edit mode without clearing the saved key.
         updateApiKeyUiState(false)
-        updateActionButtons()
         binding.etApiKey.requestFocus()
     }
 
@@ -199,6 +195,11 @@ class MainActivity : AppCompatActivity() {
         binding.tvApiKeyTitle.alpha = dimAlpha
         binding.tvApiKeyDesc.alpha = dimAlpha
         binding.tvApiKeySignupLink.alpha = dimAlpha
+        // TIL stays at alpha 1.0f so the end icon (X) is always fully opaque.
+        // Everything else — EditText content and the floating hint label — is dimmed.
+        binding.etApiKey.alpha = dimAlpha
+        val dimColor = ColorStateList.valueOf(Color.argb((255 * dimAlpha).toInt(), 0xFF, 0xFF, 0xFF))
+        binding.tilApiKey.defaultHintTextColor = if (hasKey) dimColor else null
         binding.etApiKey.isFocusable = !hasKey
         binding.etApiKey.isFocusableInTouchMode = !hasKey
         if (hasKey) {
@@ -308,23 +309,50 @@ class MainActivity : AppCompatActivity() {
 
     private fun onDownloadProofClicked() {
         val hash = lastVerifiedHash ?: return
-        val kit = anchorkit ?: return
+        val result = lastVerificationResult ?: return
         binding.btnDownloadProof.isEnabled = false
         lifecycleScope.launch {
             try {
-                val proof = withContext(Dispatchers.IO) { kit.downloadProof(hash) }
-                val json = portableProofToJson(proof)
+                val json = buildProofBundleJson(hash, result)
                 saveProofFile(hash, json)
-            } catch (e: AnchorKitError.ApiError) {
-                Toast.makeText(this@MainActivity, "Download failed (${e.statusCode}): ${e.body}", Toast.LENGTH_LONG).show()
-            } catch (e: AnchorKitError.NetworkError) {
-                Toast.makeText(this@MainActivity, "Network error: ${e.message}", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
                 Toast.makeText(this@MainActivity, "Download failed: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 binding.btnDownloadProof.isEnabled = true
             }
         }
+    }
+
+    /** Mirrors the website's downloadProofBundle — packages the verify response into a JSON file. */
+    private fun buildProofBundleJson(hash: String, result: io.anchorkit.sdk.models.VerificationResult): String {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        return JSONObject().apply {
+            put("generated", sdf.format(java.util.Date()))
+            put("hash", hash)
+            put("verified", result.verified)
+            result.day?.let { put("day", it) }
+            result.timestamp?.let { put("timestamp", it) }
+            result.hash_id?.let { put("hash_id", it) }
+            result.merkle_root?.let { put("merkle_root", it) }
+            result.merkle_proof?.let { proof ->
+                val arr = JSONArray()
+                for (step in proof) {
+                    val stepArr = JSONArray()
+                    for (v in step) stepArr.put(v)
+                    arr.put(stepArr)
+                }
+                put("merkle_proof", arr)
+            }
+            result.solana_program?.let { put("solana_program", it) }
+            result.solana_tx?.let { put("solana_tx", it) }
+            result.explorer_url?.let { put("explorer_url", it) }
+            result.chain?.let { put("chain", it) }
+            result.attestation_verified?.let { put("attestation_verified", it) }
+            if (!result.cert_fingerprint.isNullOrEmpty()) put("cert_fingerprint", result.cert_fingerprint)
+            if (!result.cert_valid_from.isNullOrEmpty()) put("cert_valid_from", result.cert_valid_from)
+            if (!result.cert_valid_until.isNullOrEmpty()) put("cert_valid_until", result.cert_valid_until)
+        }.toString(2)
     }
 
     private suspend fun saveProofFile(hash: String, json: String) {
@@ -354,45 +382,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-    }
-
-    private fun portableProofToJson(proof: PortableProof): String {
-        val proofArray = JSONArray()
-        for (step in proof.merkle_proof) {
-            val stepArray = JSONArray()
-            for (v in step) stepArray.put(v)
-            proofArray.put(stepArray)
-        }
-        val computedMerkleRoot = io.anchorkit.sdk.SolanaVerifier.computeMerkleRoot(
-            proof.hash, proof.merkle_proof
-        )
-        val computedRegistryPda = proof.solana_chunk_index?.let {
-            io.anchorkit.sdk.SolanaVerifier.derivePda(proof.solana_program, it)
-        }
-        val verifyResult = lastVerificationResult
-        val obj = JSONObject().apply {
-            put("generated", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", java.util.Locale.US).also {
-                it.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            }.format(java.util.Date()))
-            put("schema_version", proof.schema_version)
-            put("hash", proof.hash)
-            put("verified", true)
-            put("day", proof.day)
-            put("timestamp", proof.timestamp)
-            put("hash_id", proof.hash_id)
-            if (computedMerkleRoot != null) put("merkle_root", computedMerkleRoot)
-            put("merkle_proof", proofArray)
-            put("solana_program", proof.solana_program)
-            if (computedRegistryPda != null) put("solana_registry_pda", computedRegistryPda)
-            if (proof.solana_chunk_index != null) put("solana_chunk_index", proof.solana_chunk_index)
-            if (proof.solana_tx != null) put("solana_tx", proof.solana_tx)
-            put("chain", proof.chain)
-            if (verifyResult?.attestation_verified != null) put("attestation_verified", verifyResult.attestation_verified)
-            if (!verifyResult?.cert_fingerprint.isNullOrEmpty()) put("cert_fingerprint", verifyResult!!.cert_fingerprint)
-            if (!verifyResult?.cert_valid_from.isNullOrEmpty()) put("cert_valid_from", verifyResult!!.cert_valid_from)
-            if (!verifyResult?.cert_valid_until.isNullOrEmpty()) put("cert_valid_until", verifyResult!!.cert_valid_until)
-        }
-        return obj.toString(2)
     }
 
     // -------------------------------------------------------------------------
